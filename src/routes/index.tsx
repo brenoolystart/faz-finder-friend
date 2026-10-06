@@ -1,22 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import { Check, Sparkles, Tag, Ticket } from "lucide-react";
+import { useEffect, useState } from "react";
+import { CreditCard, Gift, Plus, ShieldCheck, ShoppingCart, Sparkles, Ticket, Zap } from "lucide-react";
 import { toast } from "sonner";
-import { AuroraMark } from "@/components/aurora/Logo";
-import { contact, faqs, gallery, highlights, plans, steps, type PlanId } from "@/content/clube";
+import mascara from "@/assets/mascara.jpg";
+import { contact, gallery, plans, type PlanId } from "@/content/clube";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
+import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious, type CarouselApi } from "@/components/ui/carousel";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Clube Aurora — Planos Plus e Premium" },
-      { name: "description", content: "Conheça os planos Plus e Premium do Clube Aurora e escolha o seu." },
-      { property: "og:title", content: "Clube Aurora — Planos Plus e Premium" },
-      { property: "og:description", content: "Mais vantagens para o seu dia a dia. Escolha seu plano." },
+      { title: "Clube Aurora — Premium Club" },
+      { name: "description", content: "Planos Plus e Premium do Clube Aurora: ofertas, novidades e experiências exclusivas." },
+      { property: "og:title", content: "Clube Aurora — Premium Club" },
+      { property: "og:description", content: "Escolha seu plano e aproveite vantagens exclusivas." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -24,152 +23,129 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-const icons = { tag: Tag, sparkles: Sparkles, ticket: Ticket };
-const nav = [
-  ["Planos", "#planos"],
-  ["Como funciona", "#como-funciona"],
-  ["Dúvidas", "#faq"],
+type Tab = "planos" | "beneficios" | "experiencias";
+const tabs: { id: Tab; label: string; icon: typeof Gift }[] = [
+  { id: "planos", label: "Planos", icon: CreditCard },
+  { id: "beneficios", label: "Benefícios", icon: Gift },
+  { id: "experiencias", label: "Eventos", icon: Ticket },
 ];
+const items: Record<Tab, { title: string; name: string; sub: string; plan?: PlanId }[]> = {
+  planos: plans.map((p) => ({ title: "PLANOS", name: `Plano ${p.name}`, sub: p.priceLabel, plan: p.id })),
+  beneficios: [
+    { title: "BENEFÍCIOS", name: "Descontos em parceiros", sub: "Plus e Premium" },
+    { title: "BENEFÍCIOS", name: "Novidades em primeira mão", sub: "Plus e Premium" },
+    { title: "BENEFÍCIOS", name: "Atendimento prioritário", sub: "Premium" },
+  ],
+  experiencias: [
+    { title: "EVENTOS", name: "Shows e festivais", sub: "Convites Premium" },
+    { title: "EVENTOS", name: "Jantares exclusivos", sub: "Convites Premium" },
+  ],
+};
 
 function Index() {
+  const [tab, setTab] = useState<Tab>("planos");
   const [plan, setPlan] = useState<PlanId>("premium");
-  const choose = (id: PlanId) => {
-    setPlan(id);
+  const [api, setApi] = useState<CarouselApi>();
+  const [slide, setSlide] = useState(0);
+  useEffect(() => {
+    if (!api) return;
+    const f = () => setSlide(api.selectedScrollSnap());
+    api.on("select", f);
+    return () => { api.off("select", f); };
+  }, [api]);
+  const list = items[tab];
+  const pick = (id?: PlanId) => {
+    if (id) setPlan(id);
     document.getElementById("interesse")?.scrollIntoView({ behavior: "smooth" });
-    setTimeout(() => document.getElementById("nome")?.focus(), 400);
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <a href="#conteudo" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-primary-foreground">
-        Pular para o conteúdo
-      </a>
-      <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
-          <a href="#" className="flex items-center gap-2 font-display text-lg font-semibold">
-            <AuroraMark /> Clube Aurora
-          </a>
-          <nav aria-label="Principal" className="flex items-center gap-1 sm:gap-4">
-            {nav.map(([l, h]) => (
-              <a key={h} href={h} className="hidden rounded-md px-2 py-1 text-sm text-muted-foreground hover:text-foreground sm:inline">{l}</a>
-            ))}
-            <Button size="sm" onClick={() => document.getElementById("planos")?.scrollIntoView({ behavior: "smooth" })}>Escolher plano</Button>
-          </nav>
-        </div>
-      </header>
+    <div className="hack-bg min-h-screen text-foreground">
+      <div className="mx-auto max-w-md px-4 pb-10">
+        <header className="flex items-center justify-between pt-5">
+          <span className="flex items-center gap-2 font-mono text-sm text-muted-foreground">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-primary" /> @clubeaurora
+          </span>
+          <button onClick={() => pick()} aria-label="Ir para o formulário" className="flex h-10 w-10 items-center justify-center rounded-full border border-primary/30 bg-card/60">
+            <ShoppingCart className="h-4 w-4" />
+          </button>
+        </header>
 
-      <main id="conteudo">
-        <section className="aurora-glow relative overflow-hidden px-4 py-24 text-center sm:py-32">
-          <span className="inline-block rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs font-semibold tracking-widest text-primary">CLUBE DE BENEFÍCIOS</span>
-          <h1 className="mx-auto mt-6 max-w-3xl font-display text-4xl font-bold leading-tight sm:text-6xl">
-            Mais vantagens para o seu <span className="text-gradient">dia a dia</span>
-          </h1>
-          <p className="mx-auto mt-5 max-w-xl text-lg text-muted-foreground">
-            Ofertas de parceiros, novidades em primeira mão e experiências exclusivas — em dois planos simples.
-          </p>
-          <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <Button size="lg" asChild><a href="#planos">Ver planos</a></Button>
-            <Button size="lg" variant="outline" asChild><a href="#como-funciona">Como funciona</a></Button>
-          </div>
+        <section className="flex flex-col items-center text-center">
+          <img src={mascara} alt="Máscara em fumaça roxa" width={1024} height={1024} className="mask-fade -mb-6 w-72" />
+          <span className="relative z-10 rounded-full border border-primary/40 bg-card/80 px-3 py-1 font-mono text-[11px] font-bold tracking-[0.2em] text-primary">
+            <Sparkles className="mr-1 inline h-3 w-3" />PREMIUM CLUB
+          </span>
+          <h1 className="glitch mt-3 font-display text-4xl font-extrabold tracking-tight">CLUBE AURORA</h1>
+          <p className="mt-2 max-w-xs text-sm text-muted-foreground">Ofertas, novidades e experiências exclusivas. Cadastro rápido, direto pelo site.</p>
         </section>
 
-        <section aria-label="Benefícios" className="border-y border-border bg-card/50">
-          <ul className="mx-auto grid max-w-6xl gap-6 px-4 py-10 sm:grid-cols-3">
-            {highlights.map((h) => {
-              const Icon = icons[h.icon];
-              return (
-                <li key={h.title} className="flex gap-4">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary"><Icon className="h-5 w-5" aria-hidden /></span>
-                  <div><h2 className="font-semibold">{h.title}</h2><p className="text-sm text-muted-foreground">{h.text}</p></div>
-                </li>
-              );
-            })}
+        <ul className="mt-6 grid grid-cols-3 gap-2">
+          {[[Zap, "Acesso rápido"], [ShieldCheck, "100% seguro"], [Sparkles, "Alta qualidade"]].map(([I, l]) => {
+            const Icon = I as typeof Zap;
+            return (
+              <li key={l as string} className="flex flex-col items-center gap-2 rounded-xl border border-border bg-card/60 py-4 text-xs">
+                <Icon className="h-4 w-4 text-primary" />{l as string}
+              </li>
+            );
+          })}
+        </ul>
+
+        <nav className="mt-6 grid grid-cols-3 gap-1 rounded-2xl border border-border bg-card/60 p-1.5">
+          {tabs.map((t) => (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-semibold transition ${tab === t.id ? "bg-primary text-primary-foreground shadow-lg shadow-primary/40" : "text-muted-foreground"}`}>
+              <t.icon className="h-4 w-4" />{t.label}
+            </button>
+          ))}
+        </nav>
+
+        <section className="mt-6 rounded-2xl border border-border bg-card/60 p-5">
+          <div className="flex items-center justify-between">
+            <h2 className="font-mono text-xs font-bold tracking-[0.2em]">{list[0].title}</h2>
+            <span className="text-xs text-muted-foreground">{list.length} itens</span>
+          </div>
+          <ul className="mt-4 space-y-4">
+            {list.map((it) => (
+              <li key={it.name} className="flex items-center gap-3">
+                <span className="flex h-11 w-11 items-center justify-center rounded-full border border-primary/30 bg-primary/10"><CreditCard className="h-4 w-4" /></span>
+                <div className="flex-1"><p className="font-semibold">{it.name}</p><p className="text-xs text-muted-foreground">{it.sub}</p></div>
+                <button onClick={() => pick(it.plan)} aria-label={`Quero ${it.name}`} className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-lg shadow-primary/40">
+                  <Plus className="h-5 w-5" />
+                </button>
+              </li>
+            ))}
           </ul>
         </section>
 
-        <section id="planos" className="scroll-mt-20 px-4 py-24">
-          <div className="mx-auto max-w-5xl">
-            <h2 className="text-center font-display text-3xl font-bold sm:text-4xl">Escolha seu plano</h2>
-            <p className="mt-3 text-center text-muted-foreground">Dois caminhos, o mesmo Clube.</p>
-            <div className="mt-12 grid gap-6 md:grid-cols-2">
-              {plans.map((p) => (
-                <article key={p.id} className={`relative flex flex-col rounded-2xl border p-8 shadow-lg transition ${p.highlight ? "border-primary/60 bg-card shadow-primary/20" : "border-border bg-card/70"}`}>
-                  {p.highlight && <span className="absolute -top-3 right-6 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">Mais completo</span>}
-                  <h3 className="font-display text-2xl font-bold">{p.name}</h3>
-                  <p className="mt-2 text-muted-foreground">{p.description}</p>
-                  <p className="mt-6 rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">{p.priceLabel}</p>
-                  <ul className="mt-6 flex-1 space-y-3">
-                    {p.benefits.map((b) => (
-                      <li key={b} className="flex gap-3 text-sm"><Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />{b}</li>
-                    ))}
-                  </ul>
-                  <Button className="mt-8" size="lg" variant={p.highlight ? "default" : "secondary"} onClick={() => choose(p.id)} aria-label={`Tenho interesse no plano ${p.name}`}>
-                    Tenho interesse
-                  </Button>
-                </article>
-              ))}
-            </div>
+        <section className="mt-6 rounded-2xl border border-border bg-card/60 p-5">
+          <div className="flex items-center justify-between">
+            <h2 className="font-mono text-xs font-bold tracking-[0.2em]">DEMONSTRAÇÃO</h2>
+            <span className="text-xs text-muted-foreground">{slide + 1} / {gallery.length}</span>
           </div>
-        </section>
-
-        <section aria-labelledby="galeria" className="px-4 pb-24">
-          <div className="mx-auto max-w-5xl">
-            <h2 id="galeria" className="mb-8 font-display text-2xl font-bold sm:text-3xl">Um pouco do Clube</h2>
-            <Carousel opts={{ loop: true }} className="mx-10 sm:mx-12">
-              <CarouselContent>
-                {gallery.map((g) => (
-                  <CarouselItem key={g.alt} className="md:basis-1/2">
-                    <img src={g.src} alt={g.alt} width={1280} height={800} loading="lazy" className="aspect-[16/10] w-full rounded-2xl object-cover" />
-                  </CarouselItem>
-                ))}
-              </CarouselContent>
-              <CarouselPrevious aria-label="Imagem anterior" />
-              <CarouselNext aria-label="Próxima imagem" />
-            </Carousel>
-          </div>
-        </section>
-
-        <section id="como-funciona" className="scroll-mt-20 border-t border-border bg-card/40 px-4 py-24">
-          <div className="mx-auto max-w-5xl">
-            <h2 className="text-center font-display text-3xl font-bold sm:text-4xl">Como funciona</h2>
-            <ol className="mt-12 grid gap-6 sm:grid-cols-3">
-              {steps.map((s, i) => (
-                <li key={s.title} className="rounded-2xl border border-border bg-card p-6">
-                  <span className="text-gradient font-display text-3xl font-bold">{i + 1}</span>
-                  <h3 className="mt-3 font-semibold">{s.title}</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">{s.text}</p>
-                </li>
+          <Carousel setApi={setApi} opts={{ loop: true }} className="mt-4">
+            <CarouselContent>
+              {gallery.map((g) => (
+                <CarouselItem key={g.alt}>
+                  <img src={g.src} alt={g.alt} loading="lazy" className="aspect-[4/5] w-full rounded-xl object-cover" />
+                </CarouselItem>
               ))}
-            </ol>
+            </CarouselContent>
+            <CarouselPrevious className="left-2" aria-label="Anterior" />
+            <CarouselNext className="right-2" aria-label="Próxima" />
+          </Carousel>
+          <div className="mt-3 flex justify-center gap-1.5">
+            {gallery.map((g, i) => <span key={g.alt} className={`h-1.5 rounded-full transition-all ${i === slide ? "w-6 bg-primary" : "w-1.5 bg-muted-foreground/50"}`} />)}
           </div>
         </section>
 
         <InterestForm plan={plan} setPlan={setPlan} />
 
-        <section id="faq" className="scroll-mt-20 px-4 py-24">
-          <div className="mx-auto max-w-3xl">
-            <h2 className="text-center font-display text-3xl font-bold sm:text-4xl">Perguntas frequentes</h2>
-            <Accordion type="single" collapsible className="mt-10">
-              {faqs.map((f, i) => (
-                <AccordionItem key={f.q} value={`f${i}`}>
-                  <AccordionTrigger className="text-left">{f.q}</AccordionTrigger>
-                  <AccordionContent className="text-muted-foreground">{f.a}</AccordionContent>
-                </AccordionItem>
-              ))}
-            </Accordion>
-          </div>
-        </section>
-      </main>
-
-      <footer className="border-t border-border px-4 py-10">
-        <div className="mx-auto flex max-w-6xl flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2 font-semibold"><AuroraMark className="h-6 w-6" /> Clube Aurora</div>
-          <p className="text-sm text-muted-foreground">{contact.email} · {contact.phone}</p>
-          <nav aria-label="Rodapé" className="flex gap-4 text-sm text-muted-foreground">
-            {["Termos", "Privacidade", "Suporte"].map((l) => <a key={l} href="#" className="hover:text-foreground">{l}</a>)}
-          </nav>
-        </div>
-      </footer>
+        <footer className="mt-10 text-center text-xs text-muted-foreground">
+          <p>{contact.email}</p>
+          <p className="mt-1">© 2026 Clube Aurora · Todos os direitos reservados</p>
+        </footer>
+      </div>
     </div>
   );
 }
@@ -177,39 +153,23 @@ function Index() {
 function InterestForm({ plan, setPlan }: { plan: PlanId; setPlan: (p: PlanId) => void }) {
   const [sent, setSent] = useState(false);
   return (
-    <section id="interesse" className="scroll-mt-20 px-4 py-24">
-      <div className="mx-auto max-w-xl rounded-2xl border border-primary/40 bg-card p-8 shadow-xl shadow-primary/10">
-        <h2 className="font-display text-2xl font-bold">Demonstrar interesse</h2>
-        <p className="mt-2 text-sm text-muted-foreground">Só nome e e-mail. Não pedimos dados de cartão nem documentos.</p>
-        {sent ? (
-          <p role="status" className="mt-6 rounded-lg bg-primary/10 p-4 text-sm">Obrigado! Entraremos em contato com as instruções do plano {plan === "plus" ? "Plus" : "Premium"}.</p>
-        ) : (
-          <form
-            className="mt-6 space-y-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              // Envio ainda não integrado — futuramente conectar a um serviço de contato/pagamento.
-              setSent(true);
-              toast.success("Interesse registrado!");
-            }}
-          >
-            <fieldset>
-              <legend className="mb-2 text-sm font-medium">Plano</legend>
-              <div className="grid grid-cols-2 gap-2">
-                {plans.map((p) => (
-                  <label key={p.id} className={`cursor-pointer rounded-lg border px-4 py-2 text-center text-sm has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring ${plan === p.id ? "border-primary bg-primary/15" : "border-border"}`}>
-                    <input type="radio" name="plano" value={p.id} checked={plan === p.id} onChange={() => setPlan(p.id)} className="sr-only" />
-                    {p.name}
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-            <div><Label htmlFor="nome">Nome</Label><Input id="nome" required autoComplete="name" className="mt-1" /></div>
-            <div><Label htmlFor="email">E-mail</Label><Input id="email" type="email" required autoComplete="email" className="mt-1" /></div>
-            <Button type="submit" size="lg" className="w-full">Enviar interesse</Button>
-          </form>
-        )}
-      </div>
+    <section id="interesse" className="mt-6 scroll-mt-6 rounded-2xl border border-primary/40 bg-card/70 p-5">
+      <h2 className="font-mono text-xs font-bold tracking-[0.2em]">&gt; QUERO PARTICIPAR_</h2>
+      {sent ? (
+        <p role="status" className="mt-4 rounded-lg bg-primary/10 p-4 text-sm">Obrigado! Entraremos em contato sobre o plano {plan === "plus" ? "Plus" : "Premium"}.</p>
+      ) : (
+        <form className="mt-4 space-y-3" onSubmit={(e) => { e.preventDefault(); setSent(true); toast.success("Interesse registrado!"); }}>
+          <div className="grid grid-cols-2 gap-2">
+            {plans.map((p) => (
+              <button type="button" key={p.id} onClick={() => setPlan(p.id)}
+                className={`rounded-lg border py-2 text-sm ${plan === p.id ? "border-primary bg-primary/15" : "border-border"}`}>{p.name}</button>
+            ))}
+          </div>
+          <div><Label htmlFor="nome">Nome</Label><Input id="nome" required className="mt-1" /></div>
+          <div><Label htmlFor="email">E-mail</Label><Input id="email" type="email" required className="mt-1" /></div>
+          <Button type="submit" size="lg" className="w-full">Enviar</Button>
+        </form>
+      )}
     </section>
   );
 }
