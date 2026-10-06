@@ -8,3 +8,5 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+
+- Store all storefront copy and image references in Lovable Cloud, with bundled assets used only as resilient fallbacks, so the password-protected admin remains the single editing surface.

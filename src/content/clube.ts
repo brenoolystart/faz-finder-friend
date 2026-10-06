@@ -69,3 +69,39 @@ export const faqs = [
 ];
 
 export const contact = { email: "contato@clubeaurora.exemplo", phone: "(00) 0000-0000" };
+
+export const siteTextDefaults = {
+  handle: "@clubeaurora",
+  badge: "PREMIUM CLUB",
+  title: "CLUBE AURORA",
+  intro: "Ofertas, novidades e experiências exclusivas. Cadastro rápido, direto pelo site.",
+  feature_1: "Acesso rápido",
+  feature_2: "100% seguro",
+  feature_3: "Alta qualidade",
+  catalog_empty: "Nenhum item ainda.",
+  gallery_title: "DEMONSTRAÇÃO",
+  footer_email: "contato@clubeaurora.exemplo",
+  footer_copyright: "© 2026 Clube Aurora · Todos os direitos reservados",
+  cart_title: "CARRINHO",
+  cart_empty: "Seu carrinho está vazio.",
+  total_label: "Total",
+} as const;
+
+export type SiteTextKey = keyof typeof siteTextDefaults;
+
+export const siteTextFields: Array<{ key: SiteTextKey; label: string; multiline?: boolean }> = [
+  { key: "handle", label: "Nome no topo" },
+  { key: "badge", label: "Selo acima do título" },
+  { key: "title", label: "Título principal" },
+  { key: "intro", label: "Texto de apresentação", multiline: true },
+  { key: "feature_1", label: "Destaque 1" },
+  { key: "feature_2", label: "Destaque 2" },
+  { key: "feature_3", label: "Destaque 3" },
+  { key: "catalog_empty", label: "Mensagem de categoria vazia" },
+  { key: "gallery_title", label: "Título das fotos" },
+  { key: "footer_email", label: "Contato no rodapé" },
+  { key: "footer_copyright", label: "Direitos no rodapé" },
+  { key: "cart_title", label: "Título do carrinho" },
+  { key: "cart_empty", label: "Mensagem do carrinho vazio" },
+  { key: "total_label", label: "Texto do total" },
+];
