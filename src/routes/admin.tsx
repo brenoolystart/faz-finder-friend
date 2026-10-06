@@ -149,12 +149,15 @@ function Panel({ categories, items, content, images }: { categories: Category[];
   const ItemRow = ({ item }: { item: Item }) => {
     const [i, setI] = useState(item);
     return (
-      <div className="flex gap-2">
+      <div className="space-y-2 rounded-xl border border-border/60 p-2">
+        <div className="flex gap-2">
         <IconPick value={i.icon} onChange={(icon) => setI({ ...i, icon })} />
         <Input value={i.name} onChange={(e) => setI({ ...i, name: e.target.value })} />
         <Input type="number" step="0.01" min="0" value={i.price} onChange={(e) => setI({ ...i, price: Number(e.target.value) })} className="w-24" aria-label="Preço" />
         <Button size="icon" variant="outline" aria-label="Salvar item" onClick={() => run(() => saveI({ data: i }))}><Save className="h-4 w-4" /></Button>
         <Button size="icon" variant="ghost" aria-label="Excluir item" onClick={() => run(() => del({ data: { table: "items", id: item.id } }), "Excluído")}><Trash2 className="h-4 w-4" /></Button>
+        </div>
+        <Input value={i.checkout_url ?? ""} onChange={(e) => setI({ ...i, checkout_url: e.target.value.trim() })} placeholder="Link de pagamento (https://...)" aria-label={`Link de pagamento de ${i.name}`} />
       </div>
     );
   };
@@ -223,8 +226,8 @@ function ImageEditor({ label, current, onUpload }: { label: string; current: Sit
       <Label>{label}</Label>
       {current && <img src={current.url} alt={current.alt} className="aspect-video w-full rounded-lg object-cover" />}
       <Input value={alt} onChange={(e) => setAlt(e.target.value)} placeholder="Descrição da foto" aria-label={`Descrição de ${label}`} />
-      <Input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} aria-label={`Selecionar ${label}`} />
-      <Button type="button" variant="secondary" className="w-full" disabled={busy} onClick={() => fileRef.current && chooseFile(fileRef.current)}>
+      <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" aria-label={`Selecionar ${label}`} onChange={(e) => chooseFile(e.currentTarget)} />
+      <Button type="button" variant="secondary" className="w-full" disabled={busy} onClick={() => fileRef.current?.click()}>
         {busy ? "Enviando..." : current ? "Trocar foto" : "Enviar foto"}
       </Button>
     </div>

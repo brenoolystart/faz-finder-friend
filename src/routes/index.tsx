@@ -25,7 +25,7 @@ export const Route = createFileRoute("/")({
 });
 
 const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-type Item = { name: string; price: number };
+type Item = { name: string; price: number; url: string };
 
 
 function Index() {
@@ -133,7 +133,7 @@ function Index() {
                 </button>
               </li>
             ); })}
-            {its.map((i) => <Row key={i.id} it={{ name: i.name, sub: brl(i.price), icon: i.icon }} onAdd={() => add({ name: i.name, price: i.price })} />)}
+            {its.map((i) => <Row key={i.id} it={{ name: i.name, sub: brl(i.price), icon: i.icon }} onAdd={() => add({ name: i.name, price: i.price, url: i.checkout_url })} />)}
             {subs.length + its.length === 0 && <li className="text-sm text-muted-foreground">{text.catalog_empty}</li>}
           </ul>
         </section>
@@ -180,7 +180,10 @@ function Index() {
                     <div className="flex-1"><p className="font-semibold">{l.name}</p><p className="text-xs text-muted-foreground">{brl(l.price)}</p></div>
                     <button onClick={() => dec(l.name)} aria-label="Diminuir" className="flex h-8 w-8 items-center justify-center rounded-lg border border-border"><Minus className="h-4 w-4" /></button>
                     <span className="w-5 text-center text-sm">{l.qty}</span>
-                    <button onClick={() => add(l)} aria-label="Aumentar" className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground"><Plus className="h-4 w-4" /></button>
+                    <button onClick={() => add(l)} aria-label="Aumentar" className="flex h-8 w-8 items-center justify-center rounded-lg border border-border"><Plus className="h-4 w-4" /></button>
+                    {l.url ? (
+                      <a href={l.url} target="_blank" rel="noopener noreferrer" className="rounded-lg bg-primary px-3 py-2 text-xs font-bold text-primary-foreground shadow-lg shadow-primary/40">Pagar</a>
+                    ) : <span className="px-1 text-[10px] text-muted-foreground">Em breve</span>}
                   </li>
                 ))}
               </ul>
@@ -188,6 +191,7 @@ function Index() {
             <div className="mt-5 flex items-center justify-between border-t border-border pt-4">
               <span className="text-sm text-muted-foreground">{text.total_label}</span><span className="font-display text-xl font-bold">{brl(total)}</span>
             </div>
+            {lines.length > 0 && <p className="mt-2 text-center text-[11px] text-muted-foreground">Cada produto é pago separadamente pelo botão "Pagar".</p>}
           </div>
         </div>
       )}
