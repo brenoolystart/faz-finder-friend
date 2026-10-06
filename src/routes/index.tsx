@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { ChevronRight, Minus, Plus, ShieldCheck, ShoppingCart, Sparkles, X, Zap } from "lucide-react";
+import { Check, ChevronRight, Gift, LoaderCircle, Minus, Plus, ShieldCheck, ShoppingCart, Sparkles, X, Zap } from "lucide-react";
 import { toast } from "sonner";
 import mascara from "@/assets/mascara.jpg";
 import { gallery as fallbackGallery, siteTextDefaults } from "@/content/clube";
@@ -26,6 +26,7 @@ export const Route = createFileRoute("/")({
 
 const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 type Item = { name: string; price: number; url: string };
+const itemCodeKey = (id: string) => `benefit_code_${id}`;
 
 
 function Index() {
@@ -45,6 +46,8 @@ function Index() {
   const openCat = categories.find((c) => c.id === open);
   const [cart, setCart] = useState<Record<string, Item & { qty: number }>>({});
   const [showCart, setShowCart] = useState(false);
+  const [previewItem, setPreviewItem] = useState<(Item & { code: string }) | null>(null);
+  const [generating, setGenerating] = useState(false);
   const [api, setApi] = useState<CarouselApi>();
   const [slide, setSlide] = useState(0);
   useEffect(() => {
@@ -53,9 +56,15 @@ function Index() {
     api.on("select", f);
     return () => { api.off("select", f); };
   }, [api]);
-  const add = (it: Item) => {
+  useEffect(() => {
+    if (!previewItem) return;
+    setGenerating(true);
+    const timer = window.setTimeout(() => setGenerating(false), 1500);
+    return () => window.clearTimeout(timer);
+  }, [previewItem]);
+  const add = (it: Item, notify = true) => {
     setCart((c) => ({ ...c, [it.name]: { ...it, qty: (c[it.name]?.qty ?? 0) + 1 } }));
-    toast.success(`${it.name} adicionado ao carrinho`);
+    if (notify) toast.success(`${it.name} adicionado ao carrinho`);
   };
   const dec = (name: string) => setCart((c) => {
     const n = { ...c }; const cur = n[name]; if (!cur) return c; if (cur.qty <= 1) delete n[name]; else n[name] = { ...cur, qty: cur.qty - 1 }; return n;
@@ -133,10 +142,62 @@ function Index() {
                 </button>
               </li>
             ); })}
-            {its.map((i) => <Row key={i.id} it={{ name: i.name, sub: brl(i.price), icon: i.icon }} onAdd={() => add({ name: i.name, price: i.price, url: i.checkout_url ?? "" })} />)}
+            {its.map((i) => <Row key={i.id} it={{ name: i.name, sub: brl(i.price), icon: i.icon }} onAdd={() => {
+              const item = { name: i.name, price: i.price, url: i.checkout_url ?? "" };
+              add(item, false);
+              setPreviewItem({ ...item, code: content[itemCodeKey(i.id)] ?? "" });
+            }} />)}
             {subs.length + its.length === 0 && <li className="text-sm text-muted-foreground">{text.catalog_empty}</li>}
           </ul>
         </section>
+
+        {previewItem && (
+          <section aria-live="polite" className="mt-6 rounded-2xl border border-primary/40 bg-card/80 p-5 shadow-lg shadow-primary/10">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="flex items-center gap-2 font-mono text-xs font-bold tracking-[0.16em]">
+                  {generating ? <LoaderCircle className="h-4 w-4 animate-spin text-primary" /> : <Gift className="h-4 w-4 text-primary" />}
+                  {generating ? "GERANDO SEU GIFT CARD AGORA" : "SEU GIFT CARD"}
+                </h2>
+                <p className="mt-1 text-xs text-muted-foreground">{previewItem.name} · {brl(previewItem.price)}</p>
+              </div>
+              <button type="button" onClick={() => { setPreviewItem(null); setGenerating(false); }} aria-label="Fechar prévia" className="rounded-md p-1 text-muted-foreground hover:bg-muted">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {generating ? (
+              <div className="mt-4 rounded-xl border border-border bg-background/70 p-4">
+                <p className="text-sm text-muted-foreground">Preparando seu código…</p>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
+                  <div className="h-full w-2/3 animate-pulse rounded-full bg-primary" />
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="mt-4 rounded-xl border border-primary/30 bg-background/70 p-4">
+                  <label className="font-mono text-[10px] font-bold tracking-[0.2em] text-muted-foreground">CÓDIGO DO VALE-PRESENTE</label>
+                  <div className="mt-2 flex min-h-12 items-center justify-center rounded-lg border border-input bg-card px-3 text-center">
+                    {previewItem.code ? (() => {
+                      const visibleCount = Math.max(1, Math.floor(previewItem.code.length * 0.3));
+                      return <code className="font-mono text-base font-bold tracking-[0.14em]">
+                        <span>{previewItem.code.slice(0, visibleCount)}</span>
+                        {previewItem.code.length > visibleCount && <span className="select-none blur-[5px]">{previewItem.code.slice(visibleCount)}</span>}
+                      </code>;
+                    })() : <span className="text-sm text-muted-foreground">Código ainda não cadastrado no admin.</span>}
+                  </div>
+                  <p className="mt-2 text-center text-[11px] text-muted-foreground">Prévia visual do benefício.</p>
+                </div>
+                {previewItem.url ? (
+                  <a href={previewItem.url} target="_blank" rel="noopener noreferrer" className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/30">
+                    <Check className="h-4 w-4" /> Continuar para pagamento · {brl(previewItem.price)}
+                  </a>
+                ) : <p className="mt-4 text-center text-xs text-muted-foreground">Cadastre o link de pagamento deste produto no painel admin.</p>}
+                <p className="mt-2 text-center text-[11px] text-muted-foreground">O pagamento continua no link configurado para este produto.</p>
+              </>
+            )}
+          </section>
+        )}
 
         <section className="mt-6 rounded-2xl border border-border bg-card/60 p-5">
           <div className="flex items-center justify-between">
