@@ -1,8 +1,8 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { ImagePlus, LogOut, Plus, Save, Trash2 } from "lucide-react";
+import { LogOut, Plus, Save, Trash2 } from "lucide-react";
 import {
   adminLogin, adminLogout, adminStatus, deleteRow, getCatalog, saveCategory, saveItem, saveSiteContent, uploadSiteImage,
   type Category, type Item, type SiteImage,
@@ -19,12 +19,16 @@ export const Route = createFileRoute("/admin")({
     meta: [
       { title: "Painel admin — Clube Aurora" },
       { name: "description", content: "Gerencie categorias, itens e preços do Clube Aurora." },
+      { property: "og:title", content: "Painel admin — Clube Aurora" },
+      { property: "og:description", content: "Gerencie o conteúdo do Clube Aurora." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },
     ],
   }),
   loader: async () => {
     const s = await adminStatus();
-    return { ok: s.ok, catalog: s.ok ? await getCatalog() : { categories: [], items: [] } };
+    return { ok: s.ok, catalog: s.ok ? await getCatalog() : { categories: [], items: [], content: {}, images: [] } };
   },
   errorComponent: () => <p className="p-8 text-center">Erro ao carregar o painel.</p>,
   component: Admin,
@@ -50,7 +54,7 @@ function Login() {
       onSubmit={async (e) => {
         e.preventDefault();
         const r = await login({ data: { password: pw } });
-        if (r.ok) router.invalidate(); else setErr(true);
+        if (r.ok) window.location.reload(); else setErr(true);
       }}
     >
       <h1 className="font-mono text-sm font-bold tracking-[0.2em]">&gt; PAINEL ADMIN_</h1>
@@ -204,24 +208,24 @@ function Panel({ categories, items, content, images }: { categories: Category[];
   );
 }
 
-function ImageEditor({ label, current, onUpload }: { label: string; current?: SiteImage; onUpload: (file: File, alt: string) => Promise<void> }) {
+function ImageEditor({ label, current, onUpload }: { label: string; current: SiteImage | undefined; onUpload: (file: File, alt: string) => Promise<void> }) {
   const [alt, setAlt] = useState(current?.alt ?? label);
   const [busy, setBusy] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const chooseFile = async (input: HTMLInputElement) => {
+    const file = input.files?.[0];
+    if (!file) return;
+    setBusy(true);
+    try { await onUpload(file, alt); } finally { setBusy(false); input.value = ""; }
+  };
   return (
     <div className="space-y-2 border-t border-border pt-4 first:border-0 first:pt-0">
       <Label>{label}</Label>
       {current && <img src={current.url} alt={current.alt} className="aspect-video w-full rounded-lg object-cover" />}
       <Input value={alt} onChange={(e) => setAlt(e.target.value)} placeholder="Descrição da foto" aria-label={`Descrição de ${label}`} />
-      <Button asChild variant="secondary" className="w-full">
-        <label className={busy ? "pointer-events-none opacity-60" : "cursor-pointer"}>
-          <ImagePlus className="h-4 w-4" /> {busy ? "Enviando..." : current ? "Trocar foto" : "Enviar foto"}
-          <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={busy} onChange={async (e) => {
-            const file = e.target.files?.[0];
-            if (!file) return;
-            setBusy(true);
-            try { await onUpload(file, alt); } finally { setBusy(false); e.target.value = ""; }
-          }} />
-        </label>
+      <Input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} aria-label={`Selecionar ${label}`} />
+      <Button type="button" variant="secondary" className="w-full" disabled={busy} onClick={() => fileRef.current && chooseFile(fileRef.current)}>
+        {busy ? "Enviando..." : current ? "Trocar foto" : "Enviar foto"}
       </Button>
     </div>
   );
