@@ -102,7 +102,7 @@ function Index() {
 
         <section className="mt-6 rounded-2xl border border-border bg-card/60 p-5">
           <div className="flex items-center justify-between">
-            <h2 className="font-mono text-xs font-bold tracking-[0.2em]">{list[0].title}</h2>
+            <h2 className="font-mono text-xs font-bold tracking-[0.2em]">{list[0]?.title}</h2>
             <span className="text-xs text-muted-foreground">{list.length} itens</span>
           </div>
           <ul className="mt-4 space-y-4">
