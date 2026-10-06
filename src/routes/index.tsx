@@ -56,7 +56,7 @@ function Index() {
     toast.success(`${it.name} adicionado ao carrinho`);
   };
   const dec = (name: string) => setCart((c) => {
-    const n = { ...c }; if (n[name].qty <= 1) delete n[name]; else n[name] = { ...n[name], qty: n[name].qty - 1 }; return n;
+    const n = { ...c }; const cur = n[name]; if (!cur) return c; if (cur.qty <= 1) delete n[name]; else n[name] = { ...cur, qty: cur.qty - 1 }; return n;
   });
   const lines = Object.values(cart);
   const count = lines.reduce((s, l) => s + l.qty, 0);
