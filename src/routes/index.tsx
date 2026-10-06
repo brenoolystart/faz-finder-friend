@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CreditCard, Gift, Plus, ShieldCheck, ShoppingCart, Sparkles, Ticket, Zap } from "lucide-react";
 import { toast } from "sonner";
 import mascara from "@/assets/mascara.jpg";
@@ -47,10 +47,12 @@ function Index() {
   const [plan, setPlan] = useState<PlanId>("premium");
   const [api, setApi] = useState<CarouselApi>();
   const [slide, setSlide] = useState(0);
-  if (api && !(api as unknown as { _b?: boolean })._b) {
-    (api as unknown as { _b?: boolean })._b = true;
-    api.on("select", () => setSlide(api.selectedScrollSnap()));
-  }
+  useEffect(() => {
+    if (!api) return;
+    const f = () => setSlide(api.selectedScrollSnap());
+    api.on("select", f);
+    return () => { api.off("select", f); };
+  }, [api]);
   const list = items[tab];
   const pick = (id?: PlanId) => {
     if (id) setPlan(id);
