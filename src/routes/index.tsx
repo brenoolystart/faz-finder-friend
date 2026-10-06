@@ -1,9 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { ChevronRight, CreditCard, Gift, Minus, Plus, ShieldCheck, ShoppingCart, Sparkles, X, Zap } from "lucide-react";
+import { ChevronRight, Minus, Plus, ShieldCheck, ShoppingCart, Sparkles, X, Zap } from "lucide-react";
 import { toast } from "sonner";
 import mascara from "@/assets/mascara.jpg";
-import { contact, gallery, plans, type PlanId } from "@/content/clube";
+import { contact, gallery } from "@/content/clube";
+import { getCatalog } from "@/lib/catalog.functions";
+import { getIcon } from "@/lib/icons";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious, type CarouselApi } from "@/components/ui/carousel";
 
 export const Route = createFileRoute("/")({
@@ -17,30 +19,24 @@ export const Route = createFileRoute("/")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
+  loader: () => getCatalog(),
+  errorComponent: () => <p className="p-8 text-center">Erro ao carregar o catálogo.</p>,
   component: Index,
 });
 
-type Tab = "planos" | "beneficios";
-const tabs: { id: Tab; label: string; icon: typeof Gift }[] = [
-  { id: "planos", label: "Planos", icon: CreditCard },
-  { id: "beneficios", label: "Benefícios", icon: Gift },
-];
-// Preços fictícios — substituir pelos reais
-const tiers: Record<PlanId, { name: string; price: number }[]> = {
-  plus: [{ name: "Lite", price: 19.9 }, { name: "Pro", price: 29.9 }, { name: "Master", price: 39.9 }],
-  premium: [{ name: "Lite", price: 49.9 }, { name: "Pro", price: 69.9 }, { name: "Master", price: 99.9 }],
-};
-const beneficios = [
-  { name: "Descontos em parceiros", price: 9.9 },
-  { name: "Novidades em primeira mão", price: 4.9 },
-  { name: "Atendimento prioritário", price: 14.9 },
-];
 const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 type Item = { name: string; price: number };
 
+
 function Index() {
-  const [tab, setTab] = useState<Tab>("planos");
-  const [open, setOpen] = useState<PlanId | null>(null);
+  const { categories, items } = Route.useLoaderData();
+  const tops = categories.filter((c) => !c.parent_id);
+  const [tab, setTab] = useState<string>(tops[0]?.id ?? "");
+  const [open, setOpen] = useState<string | null>(null);
+  const current = open ?? tab;
+  const subs = categories.filter((c) => c.parent_id === current);
+  const its = items.filter((i) => i.category_id === current);
+  const openCat = categories.find((c) => c.id === open);
   const [cart, setCart] = useState<Record<string, Item & { qty: number }>>({});
   const [showCart, setShowCart] = useState(false);
   const [api, setApi] = useState<CarouselApi>();
@@ -61,13 +57,16 @@ function Index() {
   const lines = Object.values(cart);
   const count = lines.reduce((s, l) => s + l.qty, 0);
   const total = lines.reduce((s, l) => s + l.qty * l.price, 0);
-  const Row = ({ it, onAdd }: { it: { name: string; sub: string }; onAdd: () => void }) => (
+  const Row = ({ it, onAdd }: { it: { name: string; sub: string; icon: string }; onAdd: () => void }) => {
+    const I = getIcon(it.icon);
+    return (
     <li className="flex items-center gap-3">
-      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-primary/30 bg-primary/10"><CreditCard className="h-4 w-4" /></span>
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-primary/30 bg-primary/10"><I className="h-4 w-4" /></span>
       <div className="flex-1"><p className="font-semibold">{it.name}</p><p className="text-xs text-muted-foreground">{it.sub}</p></div>
       <button onClick={onAdd} aria-label={`Adicionar ${it.name}`} className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-lg shadow-primary/40"><Plus className="h-5 w-5" /></button>
     </li>
   );
+  };
 
   return (
     <div className="hack-bg min-h-screen text-foreground">
@@ -102,37 +101,34 @@ function Index() {
           })}
         </ul>
 
-        <nav className="mt-6 grid grid-cols-2 gap-1 rounded-2xl border border-border bg-card/60 p-1.5">
-          {tabs.map((t) => (
+        <nav style={{ gridTemplateColumns: `repeat(${tops.length || 1}, minmax(0, 1fr))` }} className="mt-6 grid gap-1 rounded-2xl border border-border bg-card/60 p-1.5">
+          {tops.map((t) => { const TI = getIcon(t.icon); return (
             <button key={t.id} onClick={() => { setTab(t.id); setOpen(null); }}
               className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-semibold transition ${tab === t.id ? "bg-primary text-primary-foreground shadow-lg shadow-primary/40" : "text-muted-foreground"}`}>
-              <t.icon className="h-4 w-4" />{t.label}
+              <TI className="h-4 w-4 shrink-0" /><span className="truncate">{t.name}</span>
             </button>
-          ))}
+          ); })}
         </nav>
 
         <section className="mt-6 rounded-2xl border border-border bg-card/60 p-5">
           <div className="flex items-center justify-between">
             <h2 className="font-mono text-xs font-bold tracking-[0.2em]">
-              {tab === "beneficios" ? "BENEFÍCIOS" : open ? <button onClick={() => setOpen(null)}>&lt; PLANO {open.toUpperCase()}</button> : "PLANOS"}
+              {openCat ? <button onClick={() => setOpen(openCat.parent_id === tab ? null : openCat.parent_id)}>&lt; {openCat.name.toUpperCase()}</button> : tops.find((t) => t.id === tab)?.name.toUpperCase()}
             </h2>
-            <span className="text-xs text-muted-foreground">{tab === "beneficios" ? beneficios.length : open ? 3 : plans.length} itens</span>
+            <span className="text-xs text-muted-foreground">{subs.length + its.length} itens</span>
           </div>
           <ul className="mt-4 space-y-4">
-            {tab === "beneficios" && beneficios.map((b) => <Row key={b.name} it={{ name: b.name, sub: brl(b.price) }} onAdd={() => add(b)} />)}
-            {tab === "planos" && !open && plans.map((p) => (
-              <li key={p.id}>
-                <button onClick={() => setOpen(p.id)} className="flex w-full items-center gap-3 text-left">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-primary/30 bg-primary/10"><CreditCard className="h-4 w-4" /></span>
-                  <div className="flex-1"><p className="font-semibold">Plano {p.name}</p><p className="text-xs text-muted-foreground">Lite · Pro · Master</p></div>
+            {subs.map((c) => { const CI = getIcon(c.icon); return (
+              <li key={c.id}>
+                <button onClick={() => setOpen(c.id)} className="flex w-full items-center gap-3 text-left">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-primary/30 bg-primary/10"><CI className="h-4 w-4" /></span>
+                  <div className="flex-1"><p className="font-semibold">{c.name}</p><p className="text-xs text-muted-foreground">{items.filter((i) => i.category_id === c.id).map((i) => i.name).join(" · ") || "Ver opções"}</p></div>
                   <ChevronRight className="h-5 w-5 text-primary" />
                 </button>
               </li>
-            ))}
-            {tab === "planos" && open && tiers[open].map((t) => {
-              const it = { name: `${open === "plus" ? "Plus" : "Premium"} ${t.name}`, price: t.price };
-              return <Row key={t.name} it={{ name: it.name, sub: brl(t.price) }} onAdd={() => add(it)} />;
-            })}
+            ); })}
+            {its.map((i) => <Row key={i.id} it={{ name: i.name, sub: brl(i.price), icon: i.icon }} onAdd={() => add({ name: i.name, price: i.price })} />)}
+            {subs.length + its.length === 0 && <li className="text-sm text-muted-foreground">Nenhum item ainda.</li>}
           </ul>
         </section>
 
