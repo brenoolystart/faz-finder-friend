@@ -3,7 +3,7 @@ import { useSession } from "@tanstack/react-start/server";
 import { z } from "zod";
 
 export type Category = { id: string; parent_id: string | null; name: string; icon: string; sort: number };
-export type Item = { id: string; category_id: string; name: string; price: number; icon: string; sort: number };
+export type Item = { id: string; category_id: string; name: string; price: number; icon: string; sort: number; checkout_url?: string };
 export type SiteImage = { key: string; url: string; alt: string };
 
 const sessionConfig = () => ({
@@ -38,7 +38,7 @@ export const getCatalog = createServerFn({ method: "GET" }).handler(async () => 
   });
   const [c, i, t, imageRows] = await Promise.all([
     sb.from("categories").select("id,parent_id,name,icon,sort").order("sort"),
-    sb.from("items").select("id,category_id,name,price,icon,sort").order("sort"),
+    sb.from("items").select("id,category_id,name,price,icon,sort,checkout_url").order("sort"),
     sb.from("site_content").select("key,value"),
     sb.from("site_images").select("key,url,alt"),
   ]);
@@ -84,7 +84,7 @@ export const adminLogout = createServerFn({ method: "POST" }).handler(async () =
 });
 
 const catSchema = z.object({ id: z.string().uuid().optional(), parent_id: z.string().uuid().nullable(), name: z.string().min(1).max(80), icon: z.string().max(40), sort: z.number().int() });
-const itemSchema = z.object({ id: z.string().uuid().optional(), category_id: z.string().uuid(), name: z.string().min(1).max(80), price: z.number().min(0).max(1000000), icon: z.string().max(40), sort: z.number().int() });
+const itemSchema = z.object({ id: z.string().uuid().optional(), category_id: z.string().uuid(), name: z.string().min(1).max(80), price: z.number().min(0).max(1000000), icon: z.string().max(40), sort: z.number().int(), checkout_url: z.union([z.literal(""), z.string().url().max(500).refine((u) => /^https?:\/\//i.test(u), "Use um link http(s)")]).optional() });
 const contentSchema = z.array(z.object({ key: z.string().min(1).max(60), value: z.string().max(2000) })).max(40);
 const imageSchema = z.object({
   key: z.enum(["hero", "gallery_1", "gallery_2", "gallery_3", "gallery_4"]),
@@ -132,7 +132,8 @@ export const saveItem = createServerFn({ method: "POST" })
   .inputValidator((d: z.infer<typeof itemSchema>) => itemSchema.parse(d))
   .handler(async ({ data }) => {
     const sb = await admin();
-    const { id, ...rest } = data;
+    const { id, checkout_url, ...base } = data;
+    const rest = { ...base, checkout_url: checkout_url ?? "" };
     const r = id ? await sb.from("items").update(rest).eq("id", id) : await sb.from("items").insert(rest);
     if (r.error) throw new Error(r.error.message);
     return { ok: true };
