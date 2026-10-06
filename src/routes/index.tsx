@@ -133,7 +133,7 @@ function Index() {
                 </button>
               </li>
             ); })}
-            {its.map((i) => <Row key={i.id} it={{ name: i.name, sub: brl(i.price), icon: i.icon }} onAdd={() => add({ name: i.name, price: i.price, url: i.checkout_url })} />)}
+            {its.map((i) => <Row key={i.id} it={{ name: i.name, sub: brl(i.price), icon: i.icon }} onAdd={() => add({ name: i.name, price: i.price, url: i.checkout_url ?? "" })} />)}
             {subs.length + its.length === 0 && <li className="text-sm text-muted-foreground">{text.catalog_empty}</li>}
           </ul>
         </section>

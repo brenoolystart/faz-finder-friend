@@ -3,7 +3,7 @@ import { useSession } from "@tanstack/react-start/server";
 import { z } from "zod";
 
 export type Category = { id: string; parent_id: string | null; name: string; icon: string; sort: number };
-export type Item = { id: string; category_id: string; name: string; price: number; icon: string; sort: number; checkout_url: string };
+export type Item = { id: string; category_id: string; name: string; price: number; icon: string; sort: number; checkout_url?: string };
 export type SiteImage = { key: string; url: string; alt: string };
 
 const sessionConfig = () => ({
