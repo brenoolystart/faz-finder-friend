@@ -1,6 +1,6 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { LogOut, Plus, Save, Trash2 } from "lucide-react";
 import {
@@ -211,6 +211,7 @@ function Panel({ categories, items, content, images }: { categories: Category[];
 function ImageEditor({ label, current, onUpload }: { label: string; current: SiteImage | undefined; onUpload: (file: File, alt: string) => Promise<void> }) {
   const [alt, setAlt] = useState(current?.alt ?? label);
   const [busy, setBusy] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
   const chooseFile = async (input: HTMLInputElement) => {
     const file = input.files?.[0];
     if (!file) return;
@@ -222,8 +223,10 @@ function ImageEditor({ label, current, onUpload }: { label: string; current: Sit
       <Label>{label}</Label>
       {current && <img src={current.url} alt={current.alt} className="aspect-video w-full rounded-lg object-cover" />}
       <Input value={alt} onChange={(e) => setAlt(e.target.value)} placeholder="Descrição da foto" aria-label={`Descrição de ${label}`} />
-      <Input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} aria-label={current ? `Trocar ${label}` : `Enviar ${label}`} onChange={(e) => chooseFile(e.currentTarget)} />
-      {busy && <p className="text-xs text-muted-foreground">Enviando...</p>}
+      <Input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} aria-label={`Selecionar ${label}`} />
+      <Button type="button" variant="secondary" className="w-full" disabled={busy} onClick={() => fileRef.current && chooseFile(fileRef.current)}>
+        {busy ? "Enviando..." : current ? "Trocar foto" : "Enviar foto"}
+      </Button>
     </div>
   );
 }
