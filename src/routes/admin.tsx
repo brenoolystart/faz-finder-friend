@@ -2,7 +2,7 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
-import { ImagePlus, LogOut, Plus, Save, Trash2 } from "lucide-react";
+import { LogOut, Plus, Save, Trash2 } from "lucide-react";
 import {
   adminLogin, adminLogout, adminStatus, deleteRow, getCatalog, saveCategory, saveItem, saveSiteContent, uploadSiteImage,
   type Category, type Item, type SiteImage,
@@ -222,10 +222,8 @@ function ImageEditor({ label, current, onUpload }: { label: string; current: Sit
       <Label>{label}</Label>
       {current && <img src={current.url} alt={current.alt} className="aspect-video w-full rounded-lg object-cover" />}
       <Input value={alt} onChange={(e) => setAlt(e.target.value)} placeholder="Descrição da foto" aria-label={`Descrição de ${label}`} />
-      <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground">
-        <ImagePlus className="h-4 w-4" /> {busy ? "Enviando..." : current ? "Trocar foto" : "Enviar foto"}
-        <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={busy} onChange={(e) => chooseFile(e.currentTarget)} />
-      </label>
+      <Input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} aria-label={current ? `Trocar ${label}` : `Enviar ${label}`} onChange={(e) => chooseFile(e.currentTarget)} />
+      {busy && <p className="text-xs text-muted-foreground">Enviando...</p>}
     </div>
   );
 }
