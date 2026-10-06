@@ -89,6 +89,7 @@ function Panel({ categories, items, content, images }: { categories: Category[];
     try { await f(); toast.success(msg); router.invalidate(); } catch (e) { toast.error((e as Error).message); }
   };
   const tops = categories.filter((c) => !c.parent_id);
+  const ctx: Ctx = { categories, items, run, saveC, saveI, del };
   const [copy, setCopy] = useState<Record<SiteTextKey, string>>({ ...siteTextDefaults, ...content });
 
   const imageSlots = [
@@ -115,51 +116,6 @@ function Panel({ categories, items, content, images }: { categories: Category[];
       reader.readAsDataURL(file);
     });
     await run(() => uploadImage({ data: { key, alt, mime: file.type as "image/jpeg" | "image/png" | "image/webp", base64 } }), "Foto atualizada!");
-  };
-
-  const CatBlock = ({ cat, depth }: { cat: Category; depth: number }) => {
-    const [c, setC] = useState(cat);
-    const subs = categories.filter((x) => x.parent_id === cat.id);
-    const its = items.filter((i) => i.category_id === cat.id);
-    return (
-      <div className={`space-y-3 rounded-2xl border border-border bg-card/60 p-4 ${depth ? "ml-3" : ""}`}>
-        <div className="flex gap-2">
-          <IconPick value={c.icon} onChange={(icon) => setC({ ...c, icon })} />
-          <Input value={c.name} onChange={(e) => setC({ ...c, name: e.target.value })} className="font-semibold" />
-          <Button size="icon" aria-label="Salvar categoria" onClick={() => run(() => saveC({ data: c }))}><Save className="h-4 w-4" /></Button>
-          <Button size="icon" variant="destructive" aria-label="Excluir categoria"
-            onClick={() => confirm(`Excluir "${cat.name}" e tudo dentro?`) && run(() => del({ data: { table: "categories", id: cat.id } }), "Excluído")}>
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
-        {its.map((i) => <ItemRow key={i.id} item={i} />)}
-        {subs.map((s) => <CatBlock key={s.id} cat={s} depth={depth + 1} />)}
-        <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="secondary" onClick={() => run(() => saveI({ data: { category_id: cat.id, name: "Novo item", price: 0, icon: "credit-card", sort: its.length + 1 } }), "Item criado")}>
-            <Plus className="h-4 w-4" /> Item
-          </Button>
-          <Button size="sm" variant="secondary" onClick={() => run(() => saveC({ data: { parent_id: cat.id, name: "Nova subcategoria", icon: "credit-card", sort: subs.length + 1 } }), "Subcategoria criada")}>
-            <Plus className="h-4 w-4" /> Subcategoria
-          </Button>
-        </div>
-      </div>
-    );
-  };
-
-  const ItemRow = ({ item }: { item: Item }) => {
-    const [i, setI] = useState(item);
-    return (
-      <div className="space-y-2 rounded-xl border border-border/60 p-2">
-        <div className="flex gap-2">
-        <IconPick value={i.icon} onChange={(icon) => setI({ ...i, icon })} />
-        <Input value={i.name} onChange={(e) => setI({ ...i, name: e.target.value })} />
-        <Input type="number" step="0.01" min="0" value={i.price} onChange={(e) => setI({ ...i, price: Number(e.target.value) })} className="w-24" aria-label="Preço" />
-        <Button size="icon" variant="outline" aria-label="Salvar item" onClick={() => run(() => saveI({ data: i }))}><Save className="h-4 w-4" /></Button>
-        <Button size="icon" variant="ghost" aria-label="Excluir item" onClick={() => run(() => del({ data: { table: "items", id: item.id } }), "Excluído")}><Trash2 className="h-4 w-4" /></Button>
-        </div>
-        <Input value={i.checkout_url ?? ""} onChange={(e) => setI({ ...i, checkout_url: e.target.value.trim() })} placeholder="Link de pagamento (https://...)" aria-label={`Link de pagamento de ${i.name}`} />
-      </div>
-    );
   };
 
   return (
@@ -203,13 +159,69 @@ function Panel({ categories, items, content, images }: { categories: Category[];
           return <ImageEditor key={slot.key} label={slot.label} current={current} onUpload={(file, alt) => upload(slot.key, file, alt)} />;
         })}
       </section>
-      {tops.map((c) => <CatBlock key={c.id} cat={c} depth={0} />)}
+      {tops.map((c) => <CatBlock key={c.id} cat={c} depth={0} ctx={ctx} />)}
       <Button className="w-full" onClick={() => run(() => saveC({ data: { parent_id: null, name: "Nova categoria", icon: "star", sort: tops.length + 1 } }), "Categoria criada")}>
         <Plus className="h-4 w-4" /> Nova categoria
       </Button>
     </div>
   );
 }
+
+type Ctx = {
+  categories: Category[]; items: Item[];
+  run: (f: () => Promise<unknown>, msg?: string) => Promise<void>;
+  saveC: (a: { data: Parameters<typeof saveCategory>[0]["data"] }) => Promise<unknown>;
+  saveI: (a: { data: Parameters<typeof saveItem>[0]["data"] }) => Promise<unknown>;
+  del: (a: { data: Parameters<typeof deleteRow>[0]["data"] }) => Promise<unknown>;
+};
+
+function CatBlock({ cat, depth, ctx }: { cat: Category; depth: number; ctx: Ctx }) {
+    const { categories, items, run, saveC, saveI, del } = ctx;
+    const [c, setC] = useState(cat);
+    const subs = categories.filter((x) => x.parent_id === cat.id);
+    const its = items.filter((i) => i.category_id === cat.id);
+    return (
+      <div className={`space-y-3 rounded-2xl border border-border bg-card/60 p-4 ${depth ? "ml-3" : ""}`}>
+        <div className="flex gap-2">
+          <IconPick value={c.icon} onChange={(icon) => setC({ ...c, icon })} />
+          <Input value={c.name} onChange={(e) => setC({ ...c, name: e.target.value })} className="font-semibold" />
+          <Button size="icon" aria-label="Salvar categoria" onClick={() => run(() => saveC({ data: { id: c.id, parent_id: c.parent_id, name: c.name, icon: c.icon, sort: c.sort } }))}><Save className="h-4 w-4" /></Button>
+          <Button size="icon" variant="destructive" aria-label="Excluir categoria"
+            onClick={() => confirm(`Excluir "${cat.name}" e tudo dentro?`) && run(() => del({ data: { table: "categories", id: cat.id } }), "Excluído")}>
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+        {its.map((i) => <ItemRow key={i.id} item={i} ctx={ctx} />)}
+        {subs.map((s) => <CatBlock key={s.id} cat={s} depth={depth + 1} ctx={ctx} />)}
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="secondary" onClick={() => run(() => saveI({ data: { category_id: cat.id, name: "Novo item", price: 0, icon: "credit-card", sort: its.length + 1 } }), "Item criado")}>
+            <Plus className="h-4 w-4" /> Item
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => run(() => saveC({ data: { parent_id: cat.id, name: "Nova subcategoria", icon: "credit-card", sort: subs.length + 1 } }), "Subcategoria criada")}>
+            <Plus className="h-4 w-4" /> Subcategoria
+          </Button>
+        </div>
+      </div>
+    );
+}
+
+function ItemRow({ item, ctx }: { item: Item; ctx: Ctx }) {
+    const { run, saveI, del } = ctx;
+    const [i, setI] = useState(item);
+    return (
+      <div className="space-y-2 rounded-xl border border-border/60 p-2">
+        <div className="flex gap-2">
+        <IconPick value={i.icon} onChange={(icon) => setI({ ...i, icon })} />
+        <Input value={i.name} onChange={(e) => setI({ ...i, name: e.target.value })} />
+        <Input type="number" step="0.01" min="0" value={i.price} onChange={(e) => setI({ ...i, price: Number(e.target.value) })} className="w-24" aria-label="Preço" />
+        <Button size="icon" variant="outline" aria-label="Salvar item" onClick={() => run(() => saveI({ data: { id: i.id, category_id: i.category_id, name: i.name, price: i.price, icon: i.icon, sort: i.sort, checkout_url: i.checkout_url ?? "" } }))}><Save className="h-4 w-4" /></Button>
+        <Button size="icon" variant="ghost" aria-label="Excluir item" onClick={() => run(() => del({ data: { table: "items", id: item.id } }), "Excluído")}><Trash2 className="h-4 w-4" /></Button>
+        </div>
+        <Input value={i.checkout_url ?? ""} onChange={(e) => setI({ ...i, checkout_url: e.target.value.trim() })} placeholder="Link de pagamento (https://...)" aria-label={`Link de pagamento de ${i.name}`} />
+      </div>
+    );
+}
+
 
 function ImageEditor({ label, current, onUpload }: { label: string; current: SiteImage | undefined; onUpload: (file: File, alt: string) => Promise<void> }) {
   const [alt, setAlt] = useState(current?.alt ?? label);
