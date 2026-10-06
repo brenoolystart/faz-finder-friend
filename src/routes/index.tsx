@@ -121,14 +121,14 @@ function Index() {
             <h2 className="font-mono text-xs font-bold tracking-[0.2em]">
               {openCat ? <button onClick={() => setOpen(openCat.parent_id === tab ? null : openCat.parent_id)}>&lt; {openCat.name.toUpperCase()}</button> : tops.find((t) => t.id === tab)?.name.toUpperCase()}
             </h2>
-            <span className="text-xs text-muted-foreground">{subs.length + its.length} itens</span>
+            <span className="text-xs text-muted-foreground">{subs.length + its.length} {text.item_count_label}</span>
           </div>
           <ul className="mt-4 space-y-4">
             {subs.map((c) => { const CI = getIcon(c.icon); return (
               <li key={c.id}>
                 <button onClick={() => setOpen(c.id)} className="flex w-full items-center gap-3 text-left">
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-primary/30 bg-primary/10"><CI className="h-4 w-4" /></span>
-                  <div className="flex-1"><p className="font-semibold">{c.name}</p><p className="text-xs text-muted-foreground">{items.filter((i) => i.category_id === c.id).map((i) => i.name).join(" · ") || "Ver opções"}</p></div>
+                  <div className="flex-1"><p className="font-semibold">{c.name}</p><p className="text-xs text-muted-foreground">{items.filter((i) => i.category_id === c.id).map((i) => i.name).join(" · ") || text.options_label}</p></div>
                   <ChevronRight className="h-5 w-5 text-primary" />
                 </button>
               </li>
