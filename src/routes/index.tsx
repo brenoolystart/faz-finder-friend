@@ -1,12 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { CreditCard, Gift, Plus, ShieldCheck, ShoppingCart, Sparkles, Ticket, Zap } from "lucide-react";
+import { ChevronRight, CreditCard, Gift, Minus, Plus, ShieldCheck, ShoppingCart, Sparkles, X, Zap } from "lucide-react";
 import { toast } from "sonner";
 import mascara from "@/assets/mascara.jpg";
 import { contact, gallery, plans, type PlanId } from "@/content/clube";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious, type CarouselApi } from "@/components/ui/carousel";
 
 export const Route = createFileRoute("/")({
@@ -23,28 +20,29 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-type Tab = "planos" | "beneficios" | "experiencias";
+type Tab = "planos" | "beneficios";
 const tabs: { id: Tab; label: string; icon: typeof Gift }[] = [
   { id: "planos", label: "Planos", icon: CreditCard },
   { id: "beneficios", label: "Benefícios", icon: Gift },
-  { id: "experiencias", label: "Eventos", icon: Ticket },
 ];
-const items: Record<Tab, { title: string; name: string; sub: string; plan?: PlanId }[]> = {
-  planos: plans.map((p) => ({ title: "PLANOS", name: `Plano ${p.name}`, sub: p.priceLabel, plan: p.id })),
-  beneficios: [
-    { title: "BENEFÍCIOS", name: "Descontos em parceiros", sub: "Plus e Premium" },
-    { title: "BENEFÍCIOS", name: "Novidades em primeira mão", sub: "Plus e Premium" },
-    { title: "BENEFÍCIOS", name: "Atendimento prioritário", sub: "Premium" },
-  ],
-  experiencias: [
-    { title: "EVENTOS", name: "Shows e festivais", sub: "Convites Premium" },
-    { title: "EVENTOS", name: "Jantares exclusivos", sub: "Convites Premium" },
-  ],
+// Preços fictícios — substituir pelos reais
+const tiers: Record<PlanId, { name: string; price: number }[]> = {
+  plus: [{ name: "Lite", price: 19.9 }, { name: "Pro", price: 29.9 }, { name: "Master", price: 39.9 }],
+  premium: [{ name: "Lite", price: 49.9 }, { name: "Pro", price: 69.9 }, { name: "Master", price: 99.9 }],
 };
+const beneficios = [
+  { name: "Descontos em parceiros", price: 9.9 },
+  { name: "Novidades em primeira mão", price: 4.9 },
+  { name: "Atendimento prioritário", price: 14.9 },
+];
+const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+type Item = { name: string; price: number };
 
 function Index() {
   const [tab, setTab] = useState<Tab>("planos");
-  const [plan, setPlan] = useState<PlanId>("premium");
+  const [open, setOpen] = useState<PlanId | null>(null);
+  const [cart, setCart] = useState<Record<string, Item & { qty: number }>>({});
+  const [showCart, setShowCart] = useState(false);
   const [api, setApi] = useState<CarouselApi>();
   const [slide, setSlide] = useState(0);
   useEffect(() => {
@@ -53,11 +51,23 @@ function Index() {
     api.on("select", f);
     return () => { api.off("select", f); };
   }, [api]);
-  const list = items[tab];
-  const pick = (id?: PlanId) => {
-    if (id) setPlan(id);
-    document.getElementById("interesse")?.scrollIntoView({ behavior: "smooth" });
+  const add = (it: Item) => {
+    setCart((c) => ({ ...c, [it.name]: { ...it, qty: (c[it.name]?.qty ?? 0) + 1 } }));
+    toast.success(`${it.name} adicionado ao carrinho`);
   };
+  const dec = (name: string) => setCart((c) => {
+    const n = { ...c }; if (n[name].qty <= 1) delete n[name]; else n[name] = { ...n[name], qty: n[name].qty - 1 }; return n;
+  });
+  const lines = Object.values(cart);
+  const count = lines.reduce((s, l) => s + l.qty, 0);
+  const total = lines.reduce((s, l) => s + l.qty * l.price, 0);
+  const Row = ({ it, onAdd }: { it: { name: string; sub: string }; onAdd: () => void }) => (
+    <li className="flex items-center gap-3">
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-primary/30 bg-primary/10"><CreditCard className="h-4 w-4" /></span>
+      <div className="flex-1"><p className="font-semibold">{it.name}</p><p className="text-xs text-muted-foreground">{it.sub}</p></div>
+      <button onClick={onAdd} aria-label={`Adicionar ${it.name}`} className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-lg shadow-primary/40"><Plus className="h-5 w-5" /></button>
+    </li>
+  );
 
   return (
     <div className="hack-bg min-h-screen text-foreground">
@@ -66,8 +76,9 @@ function Index() {
           <span className="flex items-center gap-2 font-mono text-sm text-muted-foreground">
             <span className="h-2 w-2 animate-pulse rounded-full bg-primary" /> @clubeaurora
           </span>
-          <button onClick={() => pick()} aria-label="Ir para o formulário" className="flex h-10 w-10 items-center justify-center rounded-full border border-primary/30 bg-card/60">
+          <button onClick={() => setShowCart(true)} aria-label={`Carrinho, ${count} itens`} className="relative flex h-10 w-10 items-center justify-center rounded-full border border-primary/30 bg-card/60">
             <ShoppingCart className="h-4 w-4" />
+            {count > 0 && <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">{count}</span>}
           </button>
         </header>
 
@@ -91,9 +102,9 @@ function Index() {
           })}
         </ul>
 
-        <nav className="mt-6 grid grid-cols-3 gap-1 rounded-2xl border border-border bg-card/60 p-1.5">
+        <nav className="mt-6 grid grid-cols-2 gap-1 rounded-2xl border border-border bg-card/60 p-1.5">
           {tabs.map((t) => (
-            <button key={t.id} onClick={() => setTab(t.id)}
+            <button key={t.id} onClick={() => { setTab(t.id); setOpen(null); }}
               className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-semibold transition ${tab === t.id ? "bg-primary text-primary-foreground shadow-lg shadow-primary/40" : "text-muted-foreground"}`}>
               <t.icon className="h-4 w-4" />{t.label}
             </button>
@@ -102,19 +113,26 @@ function Index() {
 
         <section className="mt-6 rounded-2xl border border-border bg-card/60 p-5">
           <div className="flex items-center justify-between">
-            <h2 className="font-mono text-xs font-bold tracking-[0.2em]">{list[0]?.title}</h2>
-            <span className="text-xs text-muted-foreground">{list.length} itens</span>
+            <h2 className="font-mono text-xs font-bold tracking-[0.2em]">
+              {tab === "beneficios" ? "BENEFÍCIOS" : open ? <button onClick={() => setOpen(null)}>&lt; PLANO {open.toUpperCase()}</button> : "PLANOS"}
+            </h2>
+            <span className="text-xs text-muted-foreground">{tab === "beneficios" ? beneficios.length : open ? 3 : plans.length} itens</span>
           </div>
           <ul className="mt-4 space-y-4">
-            {list.map((it) => (
-              <li key={it.name} className="flex items-center gap-3">
-                <span className="flex h-11 w-11 items-center justify-center rounded-full border border-primary/30 bg-primary/10"><CreditCard className="h-4 w-4" /></span>
-                <div className="flex-1"><p className="font-semibold">{it.name}</p><p className="text-xs text-muted-foreground">{it.sub}</p></div>
-                <button onClick={() => pick(it.plan)} aria-label={`Quero ${it.name}`} className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-lg shadow-primary/40">
-                  <Plus className="h-5 w-5" />
+            {tab === "beneficios" && beneficios.map((b) => <Row key={b.name} it={{ name: b.name, sub: brl(b.price) }} onAdd={() => add(b)} />)}
+            {tab === "planos" && !open && plans.map((p) => (
+              <li key={p.id}>
+                <button onClick={() => setOpen(p.id)} className="flex w-full items-center gap-3 text-left">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-primary/30 bg-primary/10"><CreditCard className="h-4 w-4" /></span>
+                  <div className="flex-1"><p className="font-semibold">Plano {p.name}</p><p className="text-xs text-muted-foreground">Lite · Pro · Master</p></div>
+                  <ChevronRight className="h-5 w-5 text-primary" />
                 </button>
               </li>
             ))}
+            {tab === "planos" && open && tiers[open].map((t) => {
+              const it = { name: `${open === "plus" ? "Plus" : "Premium"} ${t.name}`, price: t.price };
+              return <Row key={t.name} it={{ name: it.name, sub: brl(t.price) }} onAdd={() => add(it)} />;
+            })}
           </ul>
         </section>
 
@@ -139,37 +157,38 @@ function Index() {
           </div>
         </section>
 
-        <InterestForm plan={plan} setPlan={setPlan} />
 
         <footer className="mt-10 text-center text-xs text-muted-foreground">
           <p>{contact.email}</p>
           <p className="mt-1">© 2026 Clube Aurora · Todos os direitos reservados</p>
         </footer>
       </div>
-    </div>
-  );
-}
 
-function InterestForm({ plan, setPlan }: { plan: PlanId; setPlan: (p: PlanId) => void }) {
-  const [sent, setSent] = useState(false);
-  return (
-    <section id="interesse" className="mt-6 scroll-mt-6 rounded-2xl border border-primary/40 bg-card/70 p-5">
-      <h2 className="font-mono text-xs font-bold tracking-[0.2em]">&gt; QUERO PARTICIPAR_</h2>
-      {sent ? (
-        <p role="status" className="mt-4 rounded-lg bg-primary/10 p-4 text-sm">Obrigado! Entraremos em contato sobre o plano {plan === "plus" ? "Plus" : "Premium"}.</p>
-      ) : (
-        <form className="mt-4 space-y-3" onSubmit={(e) => { e.preventDefault(); setSent(true); toast.success("Interesse registrado!"); }}>
-          <div className="grid grid-cols-2 gap-2">
-            {plans.map((p) => (
-              <button type="button" key={p.id} onClick={() => setPlan(p.id)}
-                className={`rounded-lg border py-2 text-sm ${plan === p.id ? "border-primary bg-primary/15" : "border-border"}`}>{p.name}</button>
-            ))}
+      {showCart && (
+        <div className="fixed inset-0 z-50 flex items-end bg-background/70 backdrop-blur-sm" onClick={() => setShowCart(false)}>
+          <div className="mx-auto w-full max-w-md rounded-t-3xl border border-primary/30 bg-card p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="font-mono text-xs font-bold tracking-[0.2em]">CARRINHO</h2>
+              <button onClick={() => setShowCart(false)} aria-label="Fechar"><X className="h-5 w-5" /></button>
+            </div>
+            {lines.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">Seu carrinho está vazio.</p> : (
+              <ul className="mt-4 max-h-[50vh] space-y-3 overflow-auto">
+                {lines.map((l) => (
+                  <li key={l.name} className="flex items-center gap-3">
+                    <div className="flex-1"><p className="font-semibold">{l.name}</p><p className="text-xs text-muted-foreground">{brl(l.price)}</p></div>
+                    <button onClick={() => dec(l.name)} aria-label="Diminuir" className="flex h-8 w-8 items-center justify-center rounded-lg border border-border"><Minus className="h-4 w-4" /></button>
+                    <span className="w-5 text-center text-sm">{l.qty}</span>
+                    <button onClick={() => add(l)} aria-label="Aumentar" className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground"><Plus className="h-4 w-4" /></button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="mt-5 flex items-center justify-between border-t border-border pt-4">
+              <span className="text-sm text-muted-foreground">Total</span><span className="font-display text-xl font-bold">{brl(total)}</span>
+            </div>
           </div>
-          <div><Label htmlFor="nome">Nome</Label><Input id="nome" required className="mt-1" /></div>
-          <div><Label htmlFor="email">E-mail</Label><Input id="email" type="email" required className="mt-1" /></div>
-          <Button type="submit" size="lg" className="w-full">Enviar</Button>
-        </form>
+        </div>
       )}
-    </section>
+    </div>
   );
 }
