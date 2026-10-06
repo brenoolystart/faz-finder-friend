@@ -52,6 +52,7 @@ export type Database = {
       items: {
         Row: {
           category_id: string
+          checkout_url: string
           created_at: string
           icon: string
           id: string
@@ -61,6 +62,7 @@ export type Database = {
         }
         Insert: {
           category_id: string
+          checkout_url?: string
           created_at?: string
           icon?: string
           id?: string
@@ -70,6 +72,7 @@ export type Database = {
         }
         Update: {
           category_id?: string
+          checkout_url?: string
           created_at?: string
           icon?: string
           id?: string

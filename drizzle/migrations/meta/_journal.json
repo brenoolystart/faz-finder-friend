@@ -15,6 +15,13 @@
       "when": 1791299090615,
       "tag": "0001_add_editable_site_content",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791301548250,
+      "tag": "0002_add_item_checkout_url",
+      "breakpoints": true
     }
   ]
 }

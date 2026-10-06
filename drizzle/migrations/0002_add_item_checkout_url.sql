@@ -1,0 +1,1 @@
+ALTER TABLE public.items ADD COLUMN checkout_url text NOT NULL DEFAULT '';
