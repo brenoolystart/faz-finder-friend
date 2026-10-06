@@ -132,7 +132,8 @@ export const saveItem = createServerFn({ method: "POST" })
   .inputValidator((d: z.infer<typeof itemSchema>) => itemSchema.parse(d))
   .handler(async ({ data }) => {
     const sb = await admin();
-    const { id, ...rest } = data;
+    const { id, checkout_url, ...base } = data;
+    const rest = { ...base, checkout_url: checkout_url ?? "" };
     const r = id ? await sb.from("items").update(rest).eq("id", id) : await sb.from("items").insert(rest);
     if (r.error) throw new Error(r.error.message);
     return { ok: true };
