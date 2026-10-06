@@ -2,14 +2,17 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
-import { LogOut, Plus, Save, Trash2 } from "lucide-react";
+import { ImagePlus, LogOut, Plus, Save, Trash2 } from "lucide-react";
 import {
-  adminLogin, adminLogout, adminStatus, deleteRow, getCatalog, saveCategory, saveItem,
-  type Category, type Item,
+  adminLogin, adminLogout, adminStatus, deleteRow, getCatalog, saveCategory, saveItem, saveSiteContent, uploadSiteImage,
+  type Category, type Item, type SiteImage,
 } from "@/lib/catalog.functions";
+import { siteTextDefaults, siteTextFields, type SiteTextKey } from "@/content/clube";
 import { getIcon, iconNames } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
@@ -70,16 +73,45 @@ function IconPick({ value, onChange }: { value: string; onChange: (v: string) =>
   );
 }
 
-function Panel({ categories, items }: { categories: Category[]; items: Item[] }) {
+function Panel({ categories, items, content, images }: { categories: Category[]; items: Item[]; content: Record<string, string>; images: SiteImage[] }) {
   const router = useRouter();
   const saveC = useServerFn(saveCategory);
   const saveI = useServerFn(saveItem);
   const del = useServerFn(deleteRow);
   const logout = useServerFn(adminLogout);
+  const saveText = useServerFn(saveSiteContent);
+  const uploadImage = useServerFn(uploadSiteImage);
   const run = async (f: () => Promise<unknown>, msg = "Salvo!") => {
     try { await f(); toast.success(msg); router.invalidate(); } catch (e) { toast.error((e as Error).message); }
   };
   const tops = categories.filter((c) => !c.parent_id);
+  const [copy, setCopy] = useState<Record<SiteTextKey, string>>({ ...siteTextDefaults, ...content });
+
+  const imageSlots = [
+    { key: "hero", label: "Imagem principal" },
+    { key: "gallery_1", label: "Foto 1 do carrossel" },
+    { key: "gallery_2", label: "Foto 2 do carrossel" },
+    { key: "gallery_3", label: "Foto 3 do carrossel" },
+    { key: "gallery_4", label: "Foto 4 do carrossel" },
+  ] as const;
+
+  const upload = async (key: typeof imageSlots[number]["key"], file: File, alt: string) => {
+    if (!(["image/jpeg", "image/png", "image/webp"] as string[]).includes(file.type)) {
+      toast.error("Use uma imagem JPG, PNG ou WebP.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("A imagem deve ter no máximo 5 MB.");
+      return;
+    }
+    const base64 = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result).split(",")[1] ?? "");
+      reader.onerror = () => reject(new Error("Não foi possível ler a imagem."));
+      reader.readAsDataURL(file);
+    });
+    await run(() => uploadImage({ data: { key, alt, mime: file.type as "image/jpeg" | "image/png" | "image/webp", base64 } }), "Foto atualizada!");
+  };
 
   const CatBlock = ({ cat, depth }: { cat: Category; depth: number }) => {
     const [c, setC] = useState(cat);
@@ -132,9 +164,64 @@ function Panel({ categories, items }: { categories: Category[]; items: Item[] })
           <Button size="icon" variant="ghost" aria-label="Sair" onClick={() => run(() => logout(), "Saiu")}><LogOut className="h-4 w-4" /></Button>
         </div>
       </div>
+      <section className="space-y-4 rounded-2xl border border-border bg-card/60 p-4">
+        <div>
+          <h2 className="font-mono text-xs font-bold tracking-[0.2em]">TEXTOS DO SITE</h2>
+          <p className="mt-1 text-xs text-muted-foreground">Altere os textos exibidos na página principal.</p>
+        </div>
+        <div className="space-y-3">
+          {siteTextFields.map((field) => (
+            <div key={field.key} className="space-y-1.5">
+              <Label htmlFor={field.key}>{field.label}</Label>
+              {field.multiline ? (
+                <Textarea id={field.key} value={copy[field.key]} onChange={(e) => setCopy({ ...copy, [field.key]: e.target.value })} />
+              ) : (
+                <Input id={field.key} value={copy[field.key]} onChange={(e) => setCopy({ ...copy, [field.key]: e.target.value })} />
+              )}
+            </div>
+          ))}
+        </div>
+        <Button className="w-full" onClick={() => run(() => saveText({ data: siteTextFields.map(({ key }) => ({ key, value: copy[key] })) }), "Textos atualizados!")}>
+          <Save className="h-4 w-4" /> Salvar todos os textos
+        </Button>
+      </section>
+
+      <section className="space-y-4 rounded-2xl border border-border bg-card/60 p-4">
+        <div>
+          <h2 className="font-mono text-xs font-bold tracking-[0.2em]">FOTOS DO SITE</h2>
+          <p className="mt-1 text-xs text-muted-foreground">JPG, PNG ou WebP de até 5 MB.</p>
+        </div>
+        {imageSlots.map((slot) => {
+          const current = images.find((image) => image.key === slot.key);
+          return <ImageEditor key={slot.key} label={slot.label} current={current} onUpload={(file, alt) => upload(slot.key, file, alt)} />;
+        })}
+      </section>
       {tops.map((c) => <CatBlock key={c.id} cat={c} depth={0} />)}
       <Button className="w-full" onClick={() => run(() => saveC({ data: { parent_id: null, name: "Nova categoria", icon: "star", sort: tops.length + 1 } }), "Categoria criada")}>
         <Plus className="h-4 w-4" /> Nova categoria
+      </Button>
+    </div>
+  );
+}
+
+function ImageEditor({ label, current, onUpload }: { label: string; current?: SiteImage; onUpload: (file: File, alt: string) => Promise<void> }) {
+  const [alt, setAlt] = useState(current?.alt ?? label);
+  const [busy, setBusy] = useState(false);
+  return (
+    <div className="space-y-2 border-t border-border pt-4 first:border-0 first:pt-0">
+      <Label>{label}</Label>
+      {current && <img src={current.url} alt={current.alt} className="aspect-video w-full rounded-lg object-cover" />}
+      <Input value={alt} onChange={(e) => setAlt(e.target.value)} placeholder="Descrição da foto" aria-label={`Descrição de ${label}`} />
+      <Button asChild variant="secondary" className="w-full">
+        <label className={busy ? "pointer-events-none opacity-60" : "cursor-pointer"}>
+          <ImagePlus className="h-4 w-4" /> {busy ? "Enviando..." : current ? "Trocar foto" : "Enviar foto"}
+          <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={busy} onChange={async (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            setBusy(true);
+            try { await onUpload(file, alt); } finally { setBusy(false); e.target.value = ""; }
+          }} />
+        </label>
       </Button>
     </div>
   );

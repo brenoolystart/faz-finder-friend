@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { ChevronRight, Minus, Plus, ShieldCheck, ShoppingCart, Sparkles, X, Zap } from "lucide-react";
 import { toast } from "sonner";
 import mascara from "@/assets/mascara.jpg";
-import { contact, gallery } from "@/content/clube";
+import { gallery as fallbackGallery, siteTextDefaults } from "@/content/clube";
 import { getCatalog } from "@/lib/catalog.functions";
 import { getIcon } from "@/lib/icons";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious, type CarouselApi } from "@/components/ui/carousel";
@@ -29,7 +29,13 @@ type Item = { name: string; price: number };
 
 
 function Index() {
-  const { categories, items } = Route.useLoaderData();
+  const { categories, items, content, images } = Route.useLoaderData();
+  const text = { ...siteTextDefaults, ...content };
+  const hero = images.find((image) => image.key === "hero");
+  const gallery = fallbackGallery.map((fallback, index) => {
+    const editable = images.find((image) => image.key === `gallery_${index + 1}`);
+    return editable ? { src: editable.url, alt: editable.alt || fallback.alt } : fallback;
+  });
   const tops = categories.filter((c) => !c.parent_id);
   const [tab, setTab] = useState<string>(tops[0]?.id ?? "");
   const [open, setOpen] = useState<string | null>(null);
@@ -73,7 +79,7 @@ function Index() {
       <div className="mx-auto max-w-md px-4 pb-10">
         <header className="flex items-center justify-between pt-5">
           <span className="flex items-center gap-2 font-mono text-sm text-muted-foreground">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-primary" /> @clubeaurora
+            <span className="h-2 w-2 animate-pulse rounded-full bg-primary" /> {text.handle}
           </span>
           <button onClick={() => setShowCart(true)} aria-label={`Carrinho, ${count} itens`} className="relative flex h-10 w-10 items-center justify-center rounded-full border border-primary/30 bg-card/60">
             <ShoppingCart className="h-4 w-4" />
@@ -82,16 +88,16 @@ function Index() {
         </header>
 
         <section className="flex flex-col items-center text-center">
-          <img src={mascara} alt="Máscara em fumaça roxa" width={1024} height={1024} className="mask-fade -mb-6 w-72" />
+          <img src={hero?.url ?? mascara} alt={hero?.alt || "Máscara em fumaça roxa"} width={1024} height={1024} className="mask-fade -mb-6 aspect-square w-72 object-cover" />
           <span className="relative z-10 rounded-full border border-primary/40 bg-card/80 px-3 py-1 font-mono text-[11px] font-bold tracking-[0.2em] text-primary">
-            <Sparkles className="mr-1 inline h-3 w-3" />PREMIUM CLUB
+            <Sparkles className="mr-1 inline h-3 w-3" />{text.badge}
           </span>
-          <h1 className="glitch mt-3 font-display text-4xl font-extrabold tracking-tight">CLUBE AURORA</h1>
-          <p className="mt-2 max-w-xs text-sm text-muted-foreground">Ofertas, novidades e experiências exclusivas. Cadastro rápido, direto pelo site.</p>
+          <h1 className="glitch mt-3 font-display text-4xl font-extrabold tracking-tight">{text.title}</h1>
+          <p className="mt-2 max-w-xs text-sm text-muted-foreground">{text.intro}</p>
         </section>
 
         <ul className="mt-6 grid grid-cols-3 gap-2">
-          {[[Zap, "Acesso rápido"], [ShieldCheck, "100% seguro"], [Sparkles, "Alta qualidade"]].map(([I, l]) => {
+          {[[Zap, text.feature_1], [ShieldCheck, text.feature_2], [Sparkles, text.feature_3]].map(([I, l]) => {
             const Icon = I as typeof Zap;
             return (
               <li key={l as string} className="flex flex-col items-center gap-2 rounded-xl border border-border bg-card/60 py-4 text-xs">
@@ -128,13 +134,13 @@ function Index() {
               </li>
             ); })}
             {its.map((i) => <Row key={i.id} it={{ name: i.name, sub: brl(i.price), icon: i.icon }} onAdd={() => add({ name: i.name, price: i.price })} />)}
-            {subs.length + its.length === 0 && <li className="text-sm text-muted-foreground">Nenhum item ainda.</li>}
+            {subs.length + its.length === 0 && <li className="text-sm text-muted-foreground">{text.catalog_empty}</li>}
           </ul>
         </section>
 
         <section className="mt-6 rounded-2xl border border-border bg-card/60 p-5">
           <div className="flex items-center justify-between">
-            <h2 className="font-mono text-xs font-bold tracking-[0.2em]">DEMONSTRAÇÃO</h2>
+            <h2 className="font-mono text-xs font-bold tracking-[0.2em]">{text.gallery_title}</h2>
             <span className="text-xs text-muted-foreground">{slide + 1} / {gallery.length}</span>
           </div>
           <Carousel setApi={setApi} opts={{ loop: true }} className="mt-4">
@@ -155,8 +161,8 @@ function Index() {
 
 
         <footer className="mt-10 text-center text-xs text-muted-foreground">
-          <p>{contact.email}</p>
-          <p className="mt-1">© 2026 Clube Aurora · Todos os direitos reservados</p>
+          <p>{text.footer_email}</p>
+          <p className="mt-1">{text.footer_copyright}</p>
         </footer>
       </div>
 
@@ -164,10 +170,10 @@ function Index() {
         <div className="fixed inset-0 z-50 flex items-end bg-background/70 backdrop-blur-sm" onClick={() => setShowCart(false)}>
           <div className="mx-auto w-full max-w-md rounded-t-3xl border border-primary/30 bg-card p-5" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <h2 className="font-mono text-xs font-bold tracking-[0.2em]">CARRINHO</h2>
+              <h2 className="font-mono text-xs font-bold tracking-[0.2em]">{text.cart_title}</h2>
               <button onClick={() => setShowCart(false)} aria-label="Fechar"><X className="h-5 w-5" /></button>
             </div>
-            {lines.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">Seu carrinho está vazio.</p> : (
+            {lines.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">{text.cart_empty}</p> : (
               <ul className="mt-4 max-h-[50vh] space-y-3 overflow-auto">
                 {lines.map((l) => (
                   <li key={l.name} className="flex items-center gap-3">
@@ -180,7 +186,7 @@ function Index() {
               </ul>
             )}
             <div className="mt-5 flex items-center justify-between border-t border-border pt-4">
-              <span className="text-sm text-muted-foreground">Total</span><span className="font-display text-xl font-bold">{brl(total)}</span>
+              <span className="text-sm text-muted-foreground">{text.total_label}</span><span className="font-display text-xl font-bold">{brl(total)}</span>
             </div>
           </div>
         </div>
