@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { GiftConfig } from "@/lib/gift-config";
+import type { SiteTextKey } from "@/content/clube";
 
-export function GiftForm({ config, name, text, onClose, onContinue }: { config: GiftConfig; name: string; text: Record<string, string>; onClose: () => void; onContinue: (values: Record<string, string>) => void }) {
+export function GiftForm({ config, name, text, onClose, onContinue }: { config: GiftConfig; name: string; text: Record<SiteTextKey, string>; onClose: () => void; onContinue: (values: Record<string, string>) => void }) {
   const [values, setValues] = useState<Record<string, string>>({});
   const complete = config.fields.every(f => f.type === "fixed" || f.options.includes(values[f.id] ?? ""));
   return <section aria-label={text.gift_form_title} className="mt-6 space-y-5 rounded-lg border border-primary/40 bg-card/80 p-5">

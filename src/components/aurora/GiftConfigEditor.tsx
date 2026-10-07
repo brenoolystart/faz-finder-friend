@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { giftConfigSchema, readGiftConfig, type GiftConfig } from "@/lib/gift-config";
 import { saveGiftConfig } from "@/lib/catalog.functions";
 
-export function GiftConfigEditor({ itemId, raw, onSaved }: { itemId: string; raw?: string; onSaved: () => void }) {
+export function GiftConfigEditor({ itemId, raw, onSaved }: { itemId: string; raw: string | undefined; onSaved: () => void }) {
   const [config, setConfig] = useState(() => readGiftConfig(raw));
   const [busy, setBusy] = useState(false);
   const save = useServerFn(saveGiftConfig);
