@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { useSession } from "@tanstack/react-start/server";
 import { z } from "zod";
+import { giftConfigKey, giftConfigSchema } from "./gift-config";
 
 export type Category = { id: string; parent_id: string | null; name: string; icon: string; sort: number };
 export type Item = { id: string; category_id: string; name: string; price: number; icon: string; sort: number; checkout_url?: string };
@@ -53,7 +54,7 @@ export const getCatalog = createServerFn({ method: "GET" }).handler(async () => 
   return {
     categories: (c.data ?? []) as Category[],
     items: ((i.data ?? []) as Item[]).map((x) => ({ ...x, price: Number(x.price) })),
-    content: Object.fromEntries((t.data ?? []).map((row) => [row.key, row.value])) as Record<string, string>,
+    content: Object.fromEntries((t.data ?? []).filter((row) => !row.key.startsWith("benefit_code_")).map((row) => [row.key, row.value])) as Record<string, string>,
     images,
   };
 });
@@ -70,7 +71,7 @@ export const adminLogin = createServerFn({ method: "POST" })
     if (!expected) return { ok: false };
     const a = await sha(data.password), b = await sha(expected);
     let diff = 0;
-    for (let k = 0; k < a.length; k++) diff |= a[k]! ^ b[k]!;
+    for (let k = 0; k < a.length; k++) diff |= (a[k] ?? 0) ^ (b[k] ?? 0);
     if (diff !== 0) return { ok: false };
     const s = await useSession<{ ok?: boolean }>(sessionConfig());
     await s.update({ ok: true });
@@ -100,6 +101,18 @@ export const saveSiteContent = createServerFn({ method: "POST" })
     const rows = data.map((row) => ({ ...row, updated_at: new Date().toISOString() }));
     const result = await sb.from("site_content").upsert(rows, { onConflict: "key" });
     if (result.error) throw new Error(result.error.message);
+    return { ok: true };
+  });
+
+export const saveGiftConfig = createServerFn({ method: "POST" })
+  .inputValidator((data: { itemId: string; config: z.infer<typeof giftConfigSchema> }) =>
+    z.object({ itemId: z.string().uuid(), config: giftConfigSchema }).parse(data))
+  .handler(async ({ data }) => {
+    const sb = await admin();
+    const item = await sb.from("items").select("id").eq("id", data.itemId).single();
+    if (item.error) throw new Error("Produto não encontrado.");
+    const result = await sb.from("site_content").upsert({ key: giftConfigKey(data.itemId), value: JSON.stringify(data.config), updated_at: new Date().toISOString() }, { onConflict: "key" });
+    if (result.error) throw new Error("Não foi possível salvar o formulário.");
     return { ok: true };
   });
 
