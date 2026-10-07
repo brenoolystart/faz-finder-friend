@@ -6,6 +6,9 @@ import mascara from "@/assets/mascara.jpg";
 import { gallery as fallbackGallery, siteTextDefaults } from "@/content/clube";
 import { getCatalog } from "@/lib/catalog.functions";
 import { getIcon } from "@/lib/icons";
+import { GiftForm } from "@/components/aurora/GiftForm";
+import { giftConfigKey, readGiftConfig, type GiftConfig } from "@/lib/gift-config";
+import { Button } from "@/components/ui/button";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious, type CarouselApi } from "@/components/ui/carousel";
 
 export const Route = createFileRoute("/")({
@@ -26,7 +29,7 @@ export const Route = createFileRoute("/")({
 
 const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 type Item = { name: string; price: number; url: string };
-const itemCodeKey = (id: string) => `benefit_code_${id}`;
+type GiftSelection = Item & { config: GiftConfig; values: Record<string, string> };
 
 
 function Index() {
@@ -46,7 +49,8 @@ function Index() {
   const openCat = categories.find((c) => c.id === open);
   const [cart, setCart] = useState<Record<string, Item & { qty: number }>>({});
   const [showCart, setShowCart] = useState(false);
-  const [previewItem, setPreviewItem] = useState<(Item & { code: string }) | null>(null);
+  const [previewItem, setPreviewItem] = useState<GiftSelection | null>(null);
+  const [formItem, setFormItem] = useState<(Item & { id: string; config: GiftConfig }) | null>(null);
   const [generating, setGenerating] = useState(false);
   const [api, setApi] = useState<CarouselApi>();
   const [slide, setSlide] = useState(0);
@@ -78,7 +82,7 @@ function Index() {
     <li className="flex items-center gap-3">
       <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-primary/30 bg-primary/10"><I className="h-4 w-4" /></span>
       <div className="flex-1"><p className="font-semibold">{it.name}</p><p className="text-xs text-muted-foreground">{it.sub}</p></div>
-      <button onClick={onAdd} aria-label={`Adicionar ${it.name}`} className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-lg shadow-primary/40"><Plus className="h-5 w-5" /></button>
+      <Button onClick={onAdd} aria-label={`Adicionar ${it.name}`} size="icon"><Plus className="h-5 w-5" /></Button>
     </li>
   );
   };
@@ -144,12 +148,21 @@ function Index() {
             ); })}
             {its.map((i) => <Row key={i.id} it={{ name: i.name, sub: brl(i.price), icon: i.icon }} onAdd={() => {
               const item = { name: i.name, price: i.price, url: i.checkout_url ?? "" };
-              add(item, false);
-              setPreviewItem({ ...item, code: content[itemCodeKey(i.id)] ?? "" });
+              const config = readGiftConfig(content[giftConfigKey(i.id)]);
+              setPreviewItem(null);
+              setFormItem(null);
+              if (config.enabled) setFormItem({ ...item, id: i.id, config });
+              else add(item);
             }} />)}
             {subs.length + its.length === 0 && <li className="text-sm text-muted-foreground">{text.catalog_empty}</li>}
           </ul>
         </section>
+
+        {formItem && <GiftForm key={formItem.id} config={formItem.config} name={formItem.name} text={text} onClose={() => setFormItem(null)} onContinue={values => {
+          add(formItem, false);
+          setPreviewItem({ ...formItem, values });
+          setFormItem(null);
+        }} />}
 
         {previewItem && (
           <section aria-live="polite" className="mt-6 rounded-2xl border border-primary/40 bg-card/80 p-5 shadow-lg shadow-primary/10">
@@ -157,18 +170,18 @@ function Index() {
               <div>
                 <h2 className="flex items-center gap-2 font-mono text-xs font-bold tracking-[0.16em]">
                   {generating ? <LoaderCircle className="h-4 w-4 animate-spin text-primary" /> : <Gift className="h-4 w-4 text-primary" />}
-                  {generating ? "GERANDO SEU GIFT CARD AGORA" : "SEU GIFT CARD"}
+                  {generating ? text.gift_preparing_title : text.gift_preview_title}
                 </h2>
                 <p className="mt-1 text-xs text-muted-foreground">{previewItem.name} · {brl(previewItem.price)}</p>
               </div>
-              <button type="button" onClick={() => { setPreviewItem(null); setGenerating(false); }} aria-label="Fechar prévia" className="rounded-md p-1 text-muted-foreground hover:bg-muted">
+              <Button type="button" variant="ghost" size="icon" onClick={() => { setPreviewItem(null); setGenerating(false); }} aria-label={text.gift_close}>
                 <X className="h-4 w-4" />
-              </button>
+              </Button>
             </div>
 
             {generating ? (
               <div className="mt-4 rounded-xl border border-border bg-background/70 p-4">
-                <p className="text-sm text-muted-foreground">Preparando seu código…</p>
+                <p className="text-sm text-muted-foreground">{text.gift_preparing}</p>
                 <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
                   <div className="h-full w-2/3 animate-pulse rounded-full bg-primary" />
                 </div>
@@ -176,24 +189,22 @@ function Index() {
             ) : (
               <>
                 <div className="mt-4 rounded-xl border border-primary/30 bg-background/70 p-4">
-                  <label className="font-mono text-[10px] font-bold tracking-[0.2em] text-muted-foreground">CÓDIGO DO VALE-PRESENTE</label>
+                  <label className="font-mono text-[10px] font-bold tracking-[0.2em] text-muted-foreground">{text.gift_code_label}</label>
                   <div className="mt-2 flex min-h-12 items-center justify-center rounded-lg border border-input bg-card px-3 text-center">
-                    {previewItem.code ? (() => {
-                      const visibleCount = Math.max(1, Math.floor(previewItem.code.length * 0.3));
-                      return <code className="font-mono text-base font-bold tracking-[0.14em]">
-                        <span>{previewItem.code.slice(0, visibleCount)}</span>
-                        {previewItem.code.length > visibleCount && <span className="select-none blur-[5px]">{previewItem.code.slice(visibleCount)}</span>}
-                      </code>;
-                    })() : <span className="text-sm text-muted-foreground">Código ainda não cadastrado no admin.</span>}
+                    <code className="select-none font-mono text-base font-bold blur-[5px]" aria-hidden="true">•••• — •••• — ••••</code>
                   </div>
-                  <p className="mt-2 text-center text-[11px] text-muted-foreground">Prévia visual do benefício.</p>
+                  <p className="mt-2 text-center text-[11px] text-muted-foreground">{text.gift_preview_note}</p>
                 </div>
+                <dl className="mt-4 space-y-3 text-sm">
+                  <div><dt className="text-xs text-muted-foreground">{text.gift_issuer_label}</dt><dd className="break-words">{previewItem.config.issuer}</dd></div>
+                  {previewItem.config.fields.map(field => <div key={field.id}><dt className="text-xs text-muted-foreground">{field.label}</dt><dd className="break-words">{previewItem.values[field.id]}</dd></div>)}
+                </dl>
                 {previewItem.url ? (
                   <a href={previewItem.url} target="_blank" rel="noopener noreferrer" className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/30">
-                    <Check className="h-4 w-4" /> Continuar para pagamento · {brl(previewItem.price)}
+                    <Check className="h-4 w-4" /> {text.gift_pay} · {brl(previewItem.price)}
                   </a>
-                ) : <p className="mt-4 text-center text-xs text-muted-foreground">Cadastre o link de pagamento deste produto no painel admin.</p>}
-                <p className="mt-2 text-center text-[11px] text-muted-foreground">O pagamento continua no link configurado para este produto.</p>
+                ) : <p className="mt-4 text-center text-xs text-muted-foreground">{text.gift_unavailable}</p>}
+                <p className="mt-2 text-center text-[11px] text-muted-foreground">{text.gift_payment_note}</p>
               </>
             )}
           </section>

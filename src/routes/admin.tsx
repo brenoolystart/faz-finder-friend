@@ -13,6 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { GiftConfigEditor } from "@/components/aurora/GiftConfigEditor";
+import { giftConfigKey } from "@/lib/gift-config";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
@@ -34,7 +36,6 @@ export const Route = createFileRoute("/admin")({
   component: Admin,
 });
 
-const itemCodeKey = (id: string) => `benefit_code_${id}`;
 
 function Admin() {
   const { ok, catalog } = Route.useLoaderData();
@@ -209,9 +210,9 @@ function CatBlock({ cat, depth, ctx }: { cat: Category; depth: number; ctx: Ctx 
 }
 
 function ItemRow({ item, ctx }: { item: Item; ctx: Ctx }) {
-    const { run, saveI, saveText, del, content } = ctx;
+    const { run, saveI, del, content } = ctx;
+    const router = useRouter();
     const [i, setI] = useState(item);
-    const [benefitCode, setBenefitCode] = useState(content[itemCodeKey(item.id)] ?? "");
     return (
       <div className="space-y-2 rounded-xl border border-border/60 p-2">
         <div className="flex gap-2">
@@ -222,14 +223,7 @@ function ItemRow({ item, ctx }: { item: Item; ctx: Ctx }) {
         <Button size="icon" variant="ghost" aria-label="Excluir item" onClick={() => run(() => del({ data: { table: "items", id: item.id } }), "Excluído")}><Trash2 className="h-4 w-4" /></Button>
         </div>
         <Input value={i.checkout_url ?? ""} onChange={(e) => setI({ ...i, checkout_url: e.target.value.trim() })} placeholder="Link de pagamento (https://...)" aria-label={`Link de pagamento de ${i.name}`} />
-        <div className="space-y-2 border-t border-border/60 pt-3">
-          <Label htmlFor={`benefit-code-${item.id}`}>Vale-presente ou código de membro</Label>
-          <Input id={`benefit-code-${item.id}`} value={benefitCode} onChange={(e) => setBenefitCode(e.target.value)} maxLength={2000} placeholder="Ex.: LOJA-2026-XXXX" />
-          <p className="text-xs text-muted-foreground">Ao tocar em +, o cliente verá uma prévia com parte do código borrada.</p>
-          <Button size="sm" variant="secondary" className="w-full" onClick={() => run(() => saveText({ data: [{ key: itemCodeKey(item.id), value: benefitCode.trim() }] }), "Código do benefício salvo!")}>
-            <Save className="h-4 w-4" /> Salvar código do benefício
-          </Button>
-        </div>
+        <GiftConfigEditor itemId={item.id} raw={content[giftConfigKey(item.id)]} onSaved={() => { router.invalidate(); }} />
       </div>
     );
 }
