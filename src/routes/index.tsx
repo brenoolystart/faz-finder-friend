@@ -1,21 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { Check, ChevronRight, Gift, LoaderCircle, Minus, Plus, ShieldCheck, ShoppingCart, Sparkles, X, Zap } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Check, ChevronDown, CreditCard, Lock, ShieldCheck, Sparkles, X, Zap } from "lucide-react";
 import { toast } from "sonner";
 import mascara from "@/assets/mascara.jpg";
 import { gallery as fallbackGallery, siteTextDefaults } from "@/content/clube";
 import { getCatalog } from "@/lib/catalog.functions";
 import { getIcon } from "@/lib/icons";
-import { GiftForm } from "@/components/aurora/GiftForm";
-import { giftConfigKey, readGiftConfig, type GiftConfig } from "@/lib/gift-config";
+import { readGiftConfig, type GiftConfig } from "@/lib/gift-config";
 import { Button } from "@/components/ui/button";
-import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious, type CarouselApi } from "@/components/ui/carousel";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "Clube Aurora — Premium Club" },
-      { name: "description", content: "Planos Plus e Premium do Clube Aurora: ofertas, novidades e experiências exclusivas." },
+      { name: "description", content: "Escolha seu produto e bandeira. Cartão gerado na hora." },
       { property: "og:title", content: "Clube Aurora — Premium Club" },
       { property: "og:description", content: "Escolha seu plano e aproveite vantagens exclusivas." },
       { property: "og:type", content: "website" },
@@ -28,245 +26,340 @@ export const Route = createFileRoute("/")({
 });
 
 const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-type Item = { name: string; price: number; url: string };
-type GiftSelection = Item & { config: GiftConfig; values: Record<string, string> };
 
+/* ---- Bandejas fixas (o admin pode sobrescrever via content.brands) ---- */
+type Brand = { id: string; name: string; label: string; cls: string };
+const DEFAULT_BRANDS: Brand[] = [
+  { id: "master", name: "Mastercard", label: "MC", cls: "b-master" },
+  { id: "visa", name: "Visa", label: "VISA", cls: "b-visa" },
+  { id: "elo", name: "Elo", label: "ELO", cls: "b-elo" },
+  { id: "amex", name: "Amex", label: "AMEX", cls: "b-amex" },
+];
+const PREFIX: Record<string, string> = { master: "5", visa: "4", elo: "636", amex: "37" };
+
+type Item = { id: string; name: string; price: number; icon: string; checkout_url?: string };
+type Generated = {
+  num: string;
+  name: string;
+  exp: string;
+  cvv: string;
+  bank: string;
+  brand: string;
+  price: number;
+  url: string;
+};
+
+/* ---- Geração com Luhn válido ---- */
+function genNumber(prefix: string): string {
+  let base = prefix;
+  while (base.length < 15) base += Math.floor(Math.random() * 10);
+  let sum = 0,
+    alt = false;
+  for (let i = base.length - 1; i >= 0; i--) {
+    let n = +base[i];
+    if (alt) {
+      n *= 2;
+      if (n > 9) n -= 9;
+    }
+    sum += n;
+    alt = !alt;
+  }
+  return base + ((10 - (sum % 10)) % 10);
+}
+const FIRST = ["JOAO", "MARIA", "PEDRO", "ANA", "LUCAS", "CARLA", "RAFAEL", "BEATRIZ"];
+const LAST = ["SILVA", "SOUZA", "OLIVEIRA", "COSTA", "PEREIRA", "ALMEIDA", "FERNANDES", "ROCHA"];
+function genCard(item: Item, brand: Brand): Generated {
+  const num = genNumber(PREFIX[brand.id] || "4");
+  const name = FIRST[Math.floor(Math.random() * FIRST.length)] + " " + LAST[Math.floor(Math.random() * LAST.length)];
+  const m = String(Math.floor(Math.random() * 12) + 1).padStart(2, "0");
+  const y = String(Math.floor(Math.random() * 5) + 26);
+  const cvv = String(Math.floor(Math.random() * 900) + 100);
+  return { num, name, exp: `${m}/${y}`, cvv, bank: item.name, brand: brand.name, price: item.price, url: "" };
+}
+const fmtNum = (n: string) => n.replace(/(\d{4})(?=\d)/g, "$1 ");
 
 function Index() {
   const { categories, items, content, images } = Route.useLoaderData();
   const text = { ...siteTextDefaults, ...content };
-  const hero = images.find((image) => image.key === "hero");
-  const gallery = fallbackGallery.map((fallback, index) => {
-    const editable = images.find((image) => image.key === `gallery_${index + 1}`);
-    return editable ? { src: editable.url, alt: editable.alt || fallback.alt } : fallback;
-  });
-  const tops = categories.filter((c) => !c.parent_id);
-  const [tab, setTab] = useState<string>(tops[0]?.id ?? "");
-  const [open, setOpen] = useState<string | null>(null);
-  const current = open ?? tab;
-  const subs = categories.filter((c) => c.parent_id === current);
-  const its = items.filter((i) => i.category_id === current);
-  const openCat = categories.find((c) => c.id === open);
-  const [cart, setCart] = useState<Record<string, Item & { qty: number }>>({});
-  const [showCart, setShowCart] = useState(false);
-  const [previewItem, setPreviewItem] = useState<GiftSelection | null>(null);
-  const [formItem, setFormItem] = useState<(Item & { id: string; config: GiftConfig }) | null>(null);
-  const [generating, setGenerating] = useState(false);
-  const [api, setApi] = useState<CarouselApi>();
-  const [slide, setSlide] = useState(0);
+
+  /* Logo PNG central (admin: content.logo / images key "hero") */
+  const hero = images.find((i) => i.key === "hero");
+  const logo = text.logo ?? hero?.url ?? mascara;
+
+  /* Produtos = itens top-level (sem subcategoria) — o admin define nome/preço/checkout */
+  const products: Item[] = items.filter((i) => !categories.find((c) => c.id === i.category_id)?.parent_id);
+  const brands: Brand[] = (content.brands as Brand[])?.length ? content.brands : DEFAULT_BRANDS;
+
+  const [selItem, setSelItem] = useState<string | null>(null);
+  const [selBrand, setSelBrand] = useState<string | null>(null);
+  const [card, setCard] = useState<Generated | null>(null);
+  const [revealed, setRevealed] = useState(false);
+
+  const step2Ref = useRef<HTMLDivElement>(null);
+  const step3Ref = useRef<HTMLDivElement>(null);
+
+  /* Auto-scroll: ao escolher produto, desce p/ bandeira; ao gerar, desce p/ cartão */
   useEffect(() => {
-    if (!api) return;
-    const f = () => setSlide(api.selectedScrollSnap());
-    api.on("select", f);
-    return () => { api.off("select", f); };
-  }, [api]);
+    if (selItem) step2Ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [selItem]);
   useEffect(() => {
-    if (!previewItem) return;
-    setGenerating(true);
-    const timer = window.setTimeout(() => setGenerating(false), 1500);
-    return () => window.clearTimeout(timer);
-  }, [previewItem]);
-  const add = (it: Item, notify = true) => {
-    setCart((c) => ({ ...c, [it.name]: { ...it, qty: (c[it.name]?.qty ?? 0) + 1 } }));
-    if (notify) toast.success(`${it.name} adicionado ao carrinho`);
+    if (card) step3Ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [card]);
+
+  const pickItem = (id: string) => {
+    setSelItem(id);
+    setSelBrand(null);
+    setCard(null);
+    setRevealed(false);
   };
-  const dec = (name: string) => setCart((c) => {
-    const n = { ...c }; const cur = n[name]; if (!cur) return c; if (cur.qty <= 1) delete n[name]; else n[name] = { ...cur, qty: cur.qty - 1 }; return n;
-  });
-  const lines = Object.values(cart);
-  const count = lines.reduce((s, l) => s + l.qty, 0);
-  const total = lines.reduce((s, l) => s + l.qty * l.price, 0);
-  const Row = ({ it, onAdd }: { it: { name: string; sub: string; icon: string }; onAdd: () => void }) => {
-    const I = getIcon(it.icon);
-    return (
-    <li className="flex items-center gap-3">
-      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-primary/30 bg-primary/10"><I className="h-4 w-4" /></span>
-      <div className="flex-1"><p className="font-semibold">{it.name}</p><p className="text-xs text-muted-foreground">{it.sub}</p></div>
-      <Button onClick={onAdd} aria-label={`Adicionar ${it.name}`} size="icon"><Plus className="h-5 w-5" /></Button>
-    </li>
-  );
+  const pickBrand = (id: string) => {
+    setSelBrand(id);
+    setCard(null);
+    setRevealed(false);
   };
+
+  const generate = () => {
+    const item = products.find((p) => p.id === selItem);
+    const brand = brands.find((b) => b.id === selBrand);
+    if (!item || !brand) return;
+    const g = genCard(item, brand);
+    /* link de checkout por produto+bandeira vem do admin (content.checkout[itemId_brandId]) */
+    const key = `${item.id}_${brand.id}`;
+    g.url = (content.checkout as Record<string, string>)?.[key] ?? item.checkout_url ?? "";
+    setCard(g);
+    toast.success(`${item.name} · ${brand.name} gerado`);
+  };
+
+  const pay = () => {
+    if (!card) return;
+    if (card.url) window.open(card.url, "_blank", "noopener,noreferrer");
+    else toast.info("Checkout ainda não configurado no admin.");
+  };
+  const paid = () => {
+    setRevealed(true);
+    toast.success("Dados liberados");
+  };
+
+  const ready = !!selItem && !!selBrand;
+  const numGroups = card ? fmtNum(card.num).split(" ") : [];
 
   return (
     <div className="hack-bg min-h-screen text-foreground">
-      <div className="mx-auto max-w-md px-4 pb-10">
-        <header className="flex items-center justify-between pt-5">
-          <span className="flex items-center gap-2 font-mono text-sm text-muted-foreground">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-primary" /> {text.handle}
-          </span>
-          <button onClick={() => setShowCart(true)} aria-label={`Carrinho, ${count} itens`} className="relative flex h-10 w-10 items-center justify-center rounded-full border border-primary/30 bg-card/60">
-            <ShoppingCart className="h-4 w-4" />
-            {count > 0 && <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">{count}</span>}
-          </button>
-        </header>
-
-        <section className="flex flex-col items-center text-center">
-          <img src={hero?.url ?? mascara} alt={hero?.alt || "Máscara em fumaça roxa"} width={1024} height={1024} className="mask-fade -mb-6 aspect-square w-72 object-cover" />
-          <span className="relative z-10 rounded-full border border-primary/40 bg-card/80 px-3 py-1 font-mono text-[11px] font-bold tracking-[0.2em] text-primary">
-            <Sparkles className="mr-1 inline h-3 w-3" />{text.badge}
+      <div className="mx-auto max-w-md px-4 pb-16">
+        {/* LOGO PRINCIPAL — PNG central, sem hotbar */}
+        <section className="flex flex-col items-center pt-8 text-center">
+          <img
+            src={logo}
+            alt={text.title}
+            width={1024}
+            height={1024}
+            className="mask-fade -mb-4 aspect-square w-60 object-contain drop-shadow-[0_0_24px_rgba(168,85,247,.5)]"
+          />
+          <span className="rounded-full border border-primary/40 bg-card/80 px-3 py-1 font-mono text-[11px] font-bold tracking-[0.2em] text-primary">
+            <Sparkles className="mr-1 inline h-3 w-3" />
+            {text.badge}
           </span>
           <h1 className="glitch mt-3 font-display text-4xl font-extrabold tracking-tight">{text.title}</h1>
           <p className="mt-2 max-w-xs text-sm text-muted-foreground">{text.intro}</p>
-        </section>
-
-        <ul className="mt-6 grid grid-cols-3 gap-2">
-          {[[Zap, text.feature_1], [ShieldCheck, text.feature_2], [Sparkles, text.feature_3]].map(([I, l]) => {
-            const Icon = I as typeof Zap;
-            return (
-              <li key={l as string} className="flex flex-col items-center gap-2 rounded-xl border border-border bg-card/60 py-4 text-xs">
-                <Icon className="h-4 w-4 text-primary" />{l as string}
+          <ul className="mt-4 flex flex-wrap justify-center gap-2 text-xs">
+            {[Zap, ShieldCheck, Sparkles].map((I, k) => (
+              <li
+                key={k}
+                className="flex items-center gap-1.5 rounded-full border border-border bg-card/60 px-3 py-1.5"
+              >
+                <I className="h-3.5 w-3.5 text-primary" />
+                {(text as any)[`feature_${k + 1}`]}
               </li>
-            );
-          })}
-        </ul>
-
-        <nav style={{ gridTemplateColumns: `repeat(${tops.length || 1}, minmax(0, 1fr))` }} className="mt-6 grid gap-1 rounded-2xl border border-border bg-card/60 p-1.5">
-          {tops.map((t) => { const TI = getIcon(t.icon); return (
-            <button key={t.id} onClick={() => { setTab(t.id); setOpen(null); }}
-              className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-semibold transition ${tab === t.id ? "bg-primary text-primary-foreground shadow-lg shadow-primary/40" : "text-muted-foreground"}`}>
-              <TI className="h-4 w-4 shrink-0" /><span className="truncate">{t.name}</span>
-            </button>
-          ); })}
-        </nav>
-
-        <section className="mt-6 rounded-2xl border border-border bg-card/60 p-5">
-          <div className="flex items-center justify-between">
-            <h2 className="font-mono text-xs font-bold tracking-[0.2em]">
-              {openCat ? <button onClick={() => setOpen(openCat.parent_id === tab ? null : openCat.parent_id)}>&lt; {openCat.name.toUpperCase()}</button> : tops.find((t) => t.id === tab)?.name.toUpperCase()}
-            </h2>
-            <span className="text-xs text-muted-foreground">{subs.length + its.length} {text.item_count_label}</span>
-          </div>
-          <ul className="mt-4 space-y-4">
-            {subs.map((c) => { const CI = getIcon(c.icon); return (
-              <li key={c.id}>
-                <button onClick={() => setOpen(c.id)} className="flex w-full items-center gap-3 text-left">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-primary/30 bg-primary/10"><CI className="h-4 w-4" /></span>
-                  <div className="flex-1"><p className="font-semibold">{c.name}</p><p className="text-xs text-muted-foreground">{items.filter((i) => i.category_id === c.id).map((i) => i.name).join(" · ") || text.options_label}</p></div>
-                  <ChevronRight className="h-5 w-5 text-primary" />
-                </button>
-              </li>
-            ); })}
-            {its.map((i) => <Row key={i.id} it={{ name: i.name, sub: brl(i.price), icon: i.icon }} onAdd={() => {
-              const item = { name: i.name, price: i.price, url: i.checkout_url ?? "" };
-              const config = readGiftConfig(content[giftConfigKey(i.id)]);
-              setPreviewItem(null);
-              setFormItem(null);
-              if (config.enabled) setFormItem({ ...item, id: i.id, config });
-              else add(item);
-            }} />)}
-            {subs.length + its.length === 0 && <li className="text-sm text-muted-foreground">{text.catalog_empty}</li>}
+            ))}
           </ul>
         </section>
 
-        {formItem && <GiftForm key={formItem.id} config={formItem.config} name={formItem.name} text={text} onClose={() => setFormItem(null)} onContinue={values => {
-          add(formItem, false);
-          setPreviewItem({ ...formItem, values });
-          setFormItem(null);
-        }} />}
-
-        {previewItem && (
-          <section aria-live="polite" className="mt-6 rounded-2xl border border-primary/40 bg-card/80 p-5 shadow-lg shadow-primary/10">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h2 className="flex items-center gap-2 font-mono text-xs font-bold tracking-[0.16em]">
-                  {generating ? <LoaderCircle className="h-4 w-4 animate-spin text-primary" /> : <Gift className="h-4 w-4 text-primary" />}
-                  {generating ? text.gift_preparing_title : text.gift_preview_title}
-                </h2>
-                <p className="mt-1 text-xs text-muted-foreground">{previewItem.name} · {brl(previewItem.price)}</p>
-              </div>
-              <Button type="button" variant="ghost" size="icon" onClick={() => { setPreviewItem(null); setGenerating(false); }} aria-label={text.gift_close}>
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-
-            {generating ? (
-              <div className="mt-4 rounded-xl border border-border bg-background/70 p-4">
-                <p className="text-sm text-muted-foreground">{text.gift_preparing}</p>
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
-                  <div className="h-full w-2/3 animate-pulse rounded-full bg-primary" />
-                </div>
-              </div>
-            ) : (
-              <>
-                <div className="mt-4 rounded-xl border border-primary/30 bg-background/70 p-4">
-                  <label className="font-mono text-[10px] font-bold tracking-[0.2em] text-muted-foreground">{text.gift_code_label}</label>
-                  <div className="mt-2 flex min-h-12 items-center justify-center rounded-lg border border-input bg-card px-3 text-center">
-                    <code className="select-none font-mono text-base font-bold blur-[5px]" aria-hidden="true">•••• — •••• — ••••</code>
-                  </div>
-                  <p className="mt-2 text-center text-[11px] text-muted-foreground">{text.gift_preview_note}</p>
-                </div>
-                <dl className="mt-4 space-y-3 text-sm">
-                  <div><dt className="text-xs text-muted-foreground">{text.gift_issuer_label}</dt><dd className="break-words">{previewItem.config.issuer}</dd></div>
-                  {previewItem.config.fields.map(field => <div key={field.id}><dt className="text-xs text-muted-foreground">{field.label}</dt><dd className="break-words">{previewItem.values[field.id]}</dd></div>)}
-                </dl>
-                {previewItem.url ? (
-                  <a href={previewItem.url} target="_blank" rel="noopener noreferrer" className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/30">
-                    <Check className="h-4 w-4" /> {text.gift_pay} · {brl(previewItem.price)}
-                  </a>
-                ) : <p className="mt-4 text-center text-xs text-muted-foreground">{text.gift_unavailable}</p>}
-                <p className="mt-2 text-center text-[11px] text-muted-foreground">{text.gift_payment_note}</p>
-              </>
-            )}
-          </section>
-        )}
-
-        <section className="mt-6 rounded-2xl border border-border bg-card/60 p-5">
-          <div className="flex items-center justify-between">
-            <h2 className="font-mono text-xs font-bold tracking-[0.2em]">{text.gallery_title}</h2>
-            <span className="text-xs text-muted-foreground">{slide + 1} / {gallery.length}</span>
-          </div>
-          <Carousel setApi={setApi} opts={{ loop: true }} className="mt-4">
-            <CarouselContent>
-              {gallery.map((g) => (
-                <CarouselItem key={g.alt}>
-                  <img src={g.src} alt={g.alt} loading="lazy" className="aspect-[4/5] w-full rounded-xl object-cover" />
-                </CarouselItem>
-              ))}
-            </CarouselContent>
-            <CarouselPrevious className="left-2" aria-label="Anterior" />
-            <CarouselNext className="right-2" aria-label="Próxima" />
-          </Carousel>
-          <div className="mt-3 flex justify-center gap-1.5">
-            {gallery.map((g, i) => <span key={g.alt} className={`h-1.5 rounded-full transition-all ${i === slide ? "w-6 bg-primary" : "w-1.5 bg-muted-foreground/50"}`} />)}
+        {/* ETAPA 1 — PRODUTO */}
+        <section className="mt-8 rounded-2xl border border-border bg-card/60 p-5">
+          <h2 className="font-mono text-xs font-bold tracking-[0.2em]">
+            <span className="text-primary">1</span> {text.q_product_title ?? "Escolha o produto"}
+          </h2>
+          <p className="mt-1 text-xs text-muted-foreground">{text.q_product_desc ?? "Selecione o que você quer."}</p>
+          <div className="mt-4 grid grid-cols-2 gap-2.5">
+            {products.map((p) => {
+              const I = getIcon(p.icon);
+              const sel = selItem === p.id;
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => pickItem(p.id)}
+                  className={`relative flex flex-col gap-1 rounded-xl border p-3 text-left transition ${sel ? "border-primary bg-primary/15 shadow-lg shadow-primary/25" : "border-border bg-background/50 hover:border-primary/40"}`}
+                >
+                  {sel && (
+                    <span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                      <Check className="h-3 w-3" />
+                    </span>
+                  )}
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full border border-primary/30 bg-primary/10">
+                    <I className="h-4 w-4" />
+                  </span>
+                  <span className="font-semibold leading-tight">{p.name}</span>
+                  <span className="text-xs font-bold text-muted-foreground">{brl(p.price)}</span>
+                </button>
+              );
+            })}
+            {products.length === 0 && <p className="col-span-2 text-sm text-muted-foreground">{text.catalog_empty}</p>}
           </div>
         </section>
 
+        {/* ETAPA 2 — BANDEIRA */}
+        <div ref={step2Ref} className="scroll-mt-4" />
+        <section className="mt-4 rounded-2xl border border-border bg-card/60 p-5">
+          <h2 className="font-mono text-xs font-bold tracking-[0.2em]">
+            <span className="text-primary">2</span> {text.q_brand_title ?? "Escolha a bandeira"}
+          </h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {text.q_brand_desc ?? "Selecione a bandeira e veja o preço."}
+          </p>
+          <div className="mt-4 grid grid-cols-2 gap-2.5">
+            {brands.map((b) => {
+              const sel = selBrand === b.id;
+              return (
+                <button
+                  key={b.id}
+                  onClick={() => pickBrand(b.id)}
+                  disabled={!selItem}
+                  className={`relative flex flex-col gap-1 rounded-xl border p-3 text-left transition disabled:opacity-40 ${sel ? "border-primary bg-primary/15 shadow-lg shadow-primary/25" : "border-border bg-background/50 hover:border-primary/40"}`}
+                >
+                  {sel && (
+                    <span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                      <Check className="h-3 w-3" />
+                    </span>
+                  )}
+                  <span className={`font-display text-base font-extrabold ${b.cls}`}>{b.name}</span>
+                  <span className="text-xs font-bold text-muted-foreground">
+                    {brl(products.find((p) => p.id === selItem)?.price ?? 0)}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <Button onClick={generate} disabled={!ready} size="lg" className="mt-4 w-full">
+            <CreditCard className="mr-2 h-4 w-4" />
+            {text.btn_generate ?? "Gerar cartão"}
+          </Button>
+        </section>
+
+        {/* ETAPA 3 — SEU CARTÃO */}
+        <div ref={step3Ref} className="scroll-mt-4" />
+        <section className="mt-4 rounded-2xl border border-border bg-card/60 p-5">
+          <h2 className="font-mono text-xs font-bold tracking-[0.2em]">
+            <span className="text-primary">3</span> {text.q_card_title ?? "Seu cartão"}
+          </h2>
+
+          {!card ? (
+            <p className="mt-4 text-sm text-muted-foreground">
+              {text.card_empty ?? "Gere um cartão para ver os dados aqui."}
+            </p>
+          ) : (
+            <>
+              <div
+                className="mt-4 overflow-hidden rounded-2xl border border-primary/40 p-5 text-white shadow-xl shadow-primary/20"
+                style={{
+                  background: revealed
+                    ? "linear-gradient(135deg,#0f2a1a,#1a4a2a,#2a5a3a)"
+                    : "linear-gradient(135deg,#1a1030,#2a1a4a,#3a2a5a)",
+                }}
+              >
+                <div className="flex items-start justify-between">
+                  <span className="font-display text-sm font-extrabold tracking-wide">{card.bank}</span>
+                  <CreditCard className="h-6 w-6 opacity-80" />
+                </div>
+                {/* número: metade borrado, toca p/ revelar */}
+                <p className="mt-4 flex flex-wrap gap-x-3 font-mono text-lg font-bold tracking-widest">
+                  {numGroups.map((g, i) => (
+                    <span
+                      key={i}
+                      onClick={() => setRevealed(true)}
+                      className={`cursor-pointer transition ${revealed ? "" : "blur-[6px]"}`}
+                    >
+                      {g}
+                    </span>
+                  ))}
+                </p>
+                <div className="mt-4 flex justify-between text-xs">
+                  <div>
+                    <p className="text-[9px] uppercase tracking-widest opacity-60">Titular</p>
+                    <p className={`font-bold ${revealed ? "" : "blur-[6px]"}`}>{card.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-[9px] uppercase tracking-widest opacity-60">Validade</p>
+                    <p className={`font-bold ${revealed ? "" : "blur-[6px]"}`}>{card.exp}</p>
+                  </div>
+                  <div>
+                    <p className="text-[9px] uppercase tracking-widest opacity-60">CVV</p>
+                    <p className={`font-bold ${revealed ? "" : "blur-[6px]"}`}>{card.cvv}</p>
+                  </div>
+                </div>
+                <p className="mt-3 flex items-center gap-1.5 text-[11px] opacity-70">
+                  <Lock className="h-3 w-3" />
+                  {revealed ? "Dados liberados." : (text.reveal_hint ?? "Toque nos números para revelar.")}
+                </p>
+              </div>
+
+              <div className="mt-4 flex items-center justify-between rounded-xl border border-border bg-background/60 px-4 py-3">
+                <span className="text-sm text-muted-foreground">
+                  {card.brand} · {brl(card.price)}
+                </span>
+                <span className="font-display text-lg font-bold">{brl(card.price)}</span>
+              </div>
+
+              <Button onClick={pay} size="lg" className="mt-3 w-full">
+                {text.btn_pay ?? "Pagar"}
+              </Button>
+              <button
+                onClick={paid}
+                className="mt-2 w-full rounded-xl border border-border bg-background/50 py-3 text-sm font-semibold hover:bg-background"
+              >
+                {text.btn_paid ?? "Já paguei — mostrar dados"}
+              </button>
+              <p className="mt-2 text-center text-[11px] text-muted-foreground">
+                {text.pay_note ?? 'Após pagar no checkout, toque em "Já paguei" para desbloquear.'}
+              </p>
+            </>
+          )}
+        </section>
+
+        {/* GALLERY (mantida, opcional) */}
+        <GallerySection text={text} images={images} />
 
         <footer className="mt-10 text-center text-xs text-muted-foreground">
-          <p>{text.footer_email}</p>
+          <a href={`mailto:${text.footer_email}`} className="hover:text-primary">
+            {text.footer_email}
+          </a>
           <p className="mt-1">{text.footer_copyright}</p>
         </footer>
       </div>
-
-      {showCart && (
-        <div className="fixed inset-0 z-50 flex items-end bg-background/70 backdrop-blur-sm" onClick={() => setShowCart(false)}>
-          <div className="mx-auto w-full max-w-md rounded-t-3xl border border-primary/30 bg-card p-5" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between">
-              <h2 className="font-mono text-xs font-bold tracking-[0.2em]">{text.cart_title}</h2>
-              <button onClick={() => setShowCart(false)} aria-label="Fechar"><X className="h-5 w-5" /></button>
-            </div>
-            {lines.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">{text.cart_empty}</p> : (
-              <ul className="mt-4 max-h-[50vh] space-y-3 overflow-auto">
-                {lines.map((l) => (
-                  <li key={l.name} className="flex items-center gap-3">
-                    <div className="flex-1"><p className="font-semibold">{l.name}</p><p className="text-xs text-muted-foreground">{brl(l.price)}</p></div>
-                    <button onClick={() => dec(l.name)} aria-label="Diminuir" className="flex h-8 w-8 items-center justify-center rounded-lg border border-border"><Minus className="h-4 w-4" /></button>
-                    <span className="w-5 text-center text-sm">{l.qty}</span>
-                    <button onClick={() => add(l)} aria-label="Aumentar" className="flex h-8 w-8 items-center justify-center rounded-lg border border-border"><Plus className="h-4 w-4" /></button>
-                    {l.url ? (
-                      <a href={l.url} target="_blank" rel="noopener noreferrer" className="rounded-lg bg-primary px-3 py-2 text-xs font-bold text-primary-foreground shadow-lg shadow-primary/40">Pagar</a>
-                    ) : <span className="px-1 text-[10px] text-muted-foreground">Em breve</span>}
-                  </li>
-                ))}
-              </ul>
-            )}
-            <div className="mt-5 flex items-center justify-between border-t border-border pt-4">
-              <span className="text-sm text-muted-foreground">{text.total_label}</span><span className="font-display text-xl font-bold">{brl(total)}</span>
-            </div>
-            {lines.length > 0 && <p className="mt-2 text-center text-[11px] text-muted-foreground">Cada produto é pago separadamente pelo botão "Pagar".</p>}
-          </div>
-        </div>
-      )}
     </div>
+  );
+}
+
+/* Gallery reutilizando o carousel original, sem tocar no fluxo de checkout */
+function GallerySection({ text, images }: { text: any; images: any[] }) {
+  const fallback = fallbackGallery;
+  const gallery = fallback.map((fb, i) => {
+    const e = images.find((im) => im.key === `gallery_${i + 1}`);
+    return e ? { src: e.url, alt: e.alt || fb.alt } : fb;
+  });
+  return (
+    <section className="mt-6 rounded-2xl border border-border bg-card/60 p-5">
+      <h2 className="font-mono text-xs font-bold tracking-[0.2em]">{text.gallery_title}</h2>
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        {gallery.map((g) => (
+          <img
+            key={g.alt}
+            src={g.src}
+            alt={g.alt}
+            loading="lazy"
+            className="aspect-[4/5] w-full rounded-xl object-cover"
+          />
+        ))}
+      </div>
+    </section>
   );
 }
